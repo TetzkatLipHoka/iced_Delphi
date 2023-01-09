@@ -80,7 +80,7 @@ const
 
 var
   // Free Memory
-  IcedFreeMemory : function( Pointer : Pointer ) : Boolean; stdcall;
+  IcedFreeMemory : function( Pointer : Pointer ) : Boolean; cdecl;
 
   // Creates a decoder
   //
@@ -92,7 +92,7 @@ var
   // * `data`: Data to decode
   // * `data`: ByteSize of `Data`
   // * `options`: Decoder options, `0` or eg. `DecoderOptions::NO_INVALID_CHECK | DecoderOptions::AMD`
-  Decoder_Create : function( Bitness : Cardinal; Data : PByte; DataSize : NativeUInt; IP : UInt64; Options : Cardinal = doNONE ) : Pointer; stdcall;
+  Decoder_Create : function( Bitness : Cardinal; Data : PByte; DataSize : NativeUInt; IP : UInt64; Options : Cardinal = doNONE ) : Pointer; cdecl;
 
   // Returns `true` if there's at least one more byte to decode. It doesn't verify that the
   // next instruction is valid, it only checks if there's at least one more byte to read.
@@ -142,65 +142,65 @@ var
   Decoder_GetConstantOffsets : function( Decoder : Pointer; var Instruction : TInstruction; var ConstantOffsets : TConstantOffsets ) : Boolean; cdecl;
 
   // Creates a formatter Output Callback
-  FormatterOutput_Create : function( Callback : TFormatterOutputCallback; UserData : Pointer = nil ) : Pointer; stdcall;
+  FormatterOutput_Create : function( Callback : TFormatterOutputCallback; UserData : Pointer = nil ) : Pointer; cdecl;
 
   // Creates a masm formatter
   //
   // # Arguments
   // - `symbol_resolver`: Symbol resolver or `None`
   // - `options_provider`: Operand options provider or `None`
-  MasmFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; stdcall;
+  MasmFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl;
 
   // Format Instruction
-  MasmFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; Output: PAnsiChar; Size : NativeUInt ); stdcall;
-  MasmFormatter_FormatCallback : procedure( Formatter : Pointer; var Instruction: TInstruction; FormatterOutput: Pointer ); stdcall;
+  MasmFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; Output: PAnsiChar; Size : NativeUInt ); cdecl;
+  MasmFormatter_FormatCallback : procedure( Formatter : Pointer; var Instruction: TInstruction; FormatterOutput: Pointer ); cdecl;
 
   // Creates a Nasm formatter
   //
   // # Arguments
   // - `symbol_resolver`: Symbol resolver or `None`
   // - `options_provider`: Operand options provider or `None`
-  NasmFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; stdcall;
+  NasmFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl;
 
   // Format Instruction
-  NasmFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; Output: PAnsiChar; Size : NativeUInt ); stdcall;
-  NasmFormatter_FormatCallback : procedure( Formatter : Pointer; var Instruction: TInstruction; FormatterOutput: Pointer ); stdcall;
+  NasmFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; Output: PAnsiChar; Size : NativeUInt ); cdecl;
+  NasmFormatter_FormatCallback : procedure( Formatter : Pointer; var Instruction: TInstruction; FormatterOutput: Pointer ); cdecl;
 
   // Creates a Gas formatter
   //
   // # Arguments
   // - `symbol_resolver`: Symbol resolver or `None`
   // - `options_provider`: Operand options provider or `None`
-  GasFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; stdcall;
+  GasFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl;
 
   // Format Instruction
-  GasFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); stdcall;
-  GasFormatter_FormatCallback : procedure( Formatter : Pointer; var Instruction: TInstruction; FormatterOutput: Pointer ); stdcall;
+  GasFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl;
+  GasFormatter_FormatCallback : procedure( Formatter : Pointer; var Instruction: TInstruction; FormatterOutput: Pointer ); cdecl;
 
   // Creates a Intel formatter
   //
   // # Arguments
   // - `symbol_resolver`: Symbol resolver or `None`
   // - `options_provider`: Operand options provider or `None`
-  IntelFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; stdcall;
+  IntelFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl;
 
   // Format Instruction
-  IntelFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); stdcall;
-  IntelFormatter_FormatCallback : procedure( Formatter : Pointer; var Instruction: TInstruction; FormatterOutput: Pointer ); stdcall;
+  IntelFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl;
+  IntelFormatter_FormatCallback : procedure( Formatter : Pointer; var Instruction: TInstruction; FormatterOutput: Pointer ); cdecl;
 
   // Creates a Fast formatter (Specialized)
   // NOTE: Fast Formatter only supports Specialized-Options
-  FastFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; UserData : Pointer = nil ) : Pointer; stdcall;
+  FastFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl;
 
   // Format Instruction
-  FastFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); stdcall;
+  FastFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl;
 
   // Creates a Specialized formatter
   // NOTE: Specialized Formatter only supports the following Options
-  SpecializedFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; UserData : Pointer = nil ) : Pointer; stdcall;
+  SpecializedFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl;
 
   // Format Instruction
-  SpecializedFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); stdcall;
+  SpecializedFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl;
 
 // Options
   // NOTE: Specialized Formatter only supports the following Options
@@ -1618,7 +1618,7 @@ var
   // # Arguments
   // * `bitness`: 16, 32 or 64
   // * `capacity`: Initial capacity of the `u8` buffer
-  Encoder_Create : function( Bitness : Cardinal; Capacity : NativeUInt = 0 ) : Pointer; stdcall;
+  Encoder_Create : function( Bitness : Cardinal; Capacity : NativeUInt = 0 ) : Pointer; cdecl;
 
   // Encodes an instruction and returns the size of the encoded instruction
   //
@@ -2196,7 +2196,7 @@ var
   // [`Instruction`]: struct.Instruction.html
   // [`Code`]: enum.Code.html
   // [`Instruction::flow_control()`]: struct.Instruction.html#method.flow_control
-  InstructionInfoFactory_Create : function : Pointer; stdcall;
+  InstructionInfoFactory_Create : function : Pointer; cdecl;
 
   // Creates a new [`InstructionInfo`], see also [`info()`].
   //
@@ -2359,6 +2359,7 @@ function  Instruction_IsValid( var Instruction : TInstruction ) : Boolean; {$IF 
 function  Instruction_IsData( var Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
 function  Instruction_IsProcedureStart( var Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
 function  Instruction_IsJump( var Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function  Instruction_IsRegJump( var Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
 function  Instruction_IsConditionalJump( var Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
 function  Instruction_IsCall( var Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
 function  Instruction_IsRet( var Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
@@ -3110,6 +3111,11 @@ begin
             ( Instruction.Code = Jmp_m1616 )    OR ( Instruction.Code = Jmp_m1632 )    OR ( Instruction.Code = Jmp_m1664 ) OR
 
             Instruction_IsConditionalJump( Instruction ) OR Instruction_IsCall( Instruction );
+end;
+
+function Instruction_IsRegJump( var Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
+begin
+  result := Instruction_IsJump( Instruction ) AND ( ( Instruction.op_kinds[ 0 ] <> okRegister_ ) OR ( Instruction.mem_displ <> 0 ) );
 end;
 
 function Instruction_IsConditionalJump( var Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}

@@ -329,7 +329,7 @@ interface
   {$WARN DUPLICATE_CTOR_DTOR OFF}
 {$IFEND}
 
-{$DEFINE INCLUDE_STRINGS} // ~500kb DCU // MS
+{$DEFINE INCLUDE_STRINGS} // ~500kb DCU
 
 {$IF CompilerVersion < 23}
 type
@@ -50265,9 +50265,12 @@ type
     function  IsData : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  IsProcedureStart : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  IsJump : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
+    function  IsRegJump : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  IsConditionalJump : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  IsCall : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  IsRet : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
+    function  IsFloat : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
+    function  IsFloat64 : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  IsEqual( var Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
 
     function  FPU_StackIncrementInfo : TFpuStackIncrementInfo; {$IF CompilerVersion >= 23}inline;{$IFEND}
@@ -51048,6 +51051,11 @@ begin
             IsConditionalJump OR IsCall;
 end;
 
+function TInstruction.IsRegJump : Boolean;
+begin
+  result := IsJump AND ( ( op_kinds[ 0 ] = okRegister_ ) OR ( mem_displ = 0 ) );
+end;
+
 function TInstruction.IsConditionalJump : Boolean;
 begin
   result := ( Code = Je_rel8_64 )  OR  ( Code = Jp_rel8_16 )  OR ( Code = Jg_rel8_32 ) OR ( Code = Jle_rel16 )    OR ( Code = Jle_rel32_32 ) OR ( Code = Jle_rel32_64 ) OR
@@ -51106,6 +51114,652 @@ begin
             ( displ_size    = Instruction.displ_size ) AND
             ( len           = Instruction.len ) AND
             ( pad           = Instruction.pad );
+end;
+
+function TInstruction.IsFloat : Boolean;
+begin
+  if( Code = Movups_xmm_xmmm128 ) OR ( Code = VEX_Vmovups_xmm_xmmm128 ) OR ( Code = EVEX_Vmovups_xmm_k1z_xmmm128 ) OR
+    ( Code = Movupd_xmm_xmmm128 ) OR ( Code = VEX_Vmovupd_xmm_xmmm128 ) OR ( Code = EVEX_Vmovupd_xmm_k1z_xmmm128 ) OR
+    ( Code = Movss_xmm_xmmm32 ) OR ( Code = VEX_Vmovss_xmm_xmm_xmm ) OR ( Code = VEX_Vmovss_xmm_m32 ) OR
+    ( Code = EVEX_Vmovss_xmm_k1z_xmm_xmm ) OR ( Code = EVEX_Vmovss_xmm_k1z_m32 ) OR ( Code = Movsd_xmm_xmmm64 ) OR
+    ( Code = VEX_Vmovsd_xmm_xmm_xmm ) OR ( Code = VEX_Vmovsd_xmm_m64 ) OR ( Code = EVEX_Vmovsd_xmm_k1z_xmm_xmm ) OR
+    ( Code = EVEX_Vmovsd_xmm_k1z_m64 ) OR ( Code = Movups_xmmm128_xmm ) OR ( Code = VEX_Vmovups_xmmm128_xmm ) OR
+    ( Code = EVEX_Vmovups_xmmm128_k1z_xmm ) OR ( Code = Movupd_xmmm128_xmm ) OR ( Code = VEX_Vmovupd_xmmm128_xmm ) OR
+    ( Code = EVEX_Vmovupd_xmmm128_k1z_xmm ) OR ( Code = Movss_xmmm32_xmm ) OR ( Code = VEX_Vmovss_xmm_xmm_xmm_0F11 ) OR
+    ( Code = VEX_Vmovss_m32_xmm ) OR ( Code = EVEX_Vmovss_xmm_k1z_xmm_xmm_0F11 ) OR ( Code = EVEX_Vmovss_m32_k1_xmm ) OR
+    ( Code = Movsd_xmmm64_xmm ) OR ( Code = VEX_Vmovsd_xmm_xmm_xmm_0F11 ) OR ( Code = VEX_Vmovsd_m64_xmm ) OR
+    ( Code = EVEX_Vmovsd_xmm_k1z_xmm_xmm_0F11 ) OR ( Code = EVEX_Vmovsd_m64_k1_xmm ) OR ( Code = Movhlps_xmm_xmm ) OR
+    ( Code = Movlps_xmm_m64 ) OR ( Code = VEX_Vmovhlps_xmm_xmm_xmm ) OR ( Code = VEX_Vmovlps_xmm_xmm_m64 ) OR
+    ( Code = EVEX_Vmovhlps_xmm_xmm_xmm ) OR ( Code = EVEX_Vmovlps_xmm_xmm_m64 ) OR ( Code = Movlpd_xmm_m64 ) OR
+    ( Code = VEX_Vmovlpd_xmm_xmm_m64 ) OR ( Code = EVEX_Vmovlpd_xmm_xmm_m64 ) OR ( Code = Movsldup_xmm_xmmm128 ) OR
+    ( Code = VEX_Vmovsldup_xmm_xmmm128 ) OR ( Code = EVEX_Vmovsldup_xmm_k1z_xmmm128 ) OR ( Code = Movddup_xmm_xmmm64 ) OR
+    ( Code = VEX_Vmovddup_xmm_xmmm64 ) OR ( Code = EVEX_Vmovddup_xmm_k1z_xmmm64 ) OR ( Code = Movlps_m64_xmm ) OR
+    ( Code = VEX_Vmovlps_m64_xmm ) OR ( Code = EVEX_Vmovlps_m64_xmm ) OR ( Code = Movlpd_m64_xmm ) OR
+    ( Code = VEX_Vmovlpd_m64_xmm ) OR ( Code = EVEX_Vmovlpd_m64_xmm ) OR ( Code = Unpcklps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vunpcklps_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vunpcklps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Unpcklpd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vunpcklpd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vunpcklpd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Unpckhps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vunpckhps_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vunpckhps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Unpckhpd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vunpckhpd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vunpckhpd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Movlhps_xmm_xmm ) OR
+    ( Code = VEX_Vmovlhps_xmm_xmm_xmm ) OR ( Code = EVEX_Vmovlhps_xmm_xmm_xmm ) OR ( Code = Movhps_xmm_m64 ) OR
+    ( Code = VEX_Vmovhps_xmm_xmm_m64 ) OR ( Code = EVEX_Vmovhps_xmm_xmm_m64 ) OR ( Code = Movhpd_xmm_m64 ) OR
+    ( Code = VEX_Vmovhpd_xmm_xmm_m64 ) OR ( Code = EVEX_Vmovhpd_xmm_xmm_m64 ) OR ( Code = Movshdup_xmm_xmmm128 ) OR
+    ( Code = VEX_Vmovshdup_xmm_xmmm128 ) OR ( Code = EVEX_Vmovshdup_xmm_k1z_xmmm128 ) OR ( Code = Movhps_m64_xmm ) OR
+    ( Code = VEX_Vmovhps_m64_xmm ) OR ( Code = EVEX_Vmovhps_m64_xmm ) OR ( Code = Movhpd_m64_xmm ) OR
+    ( Code = VEX_Vmovhpd_m64_xmm ) OR ( Code = EVEX_Vmovhpd_m64_xmm ) OR ( Code = Movaps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vmovaps_xmm_xmmm128 ) OR ( Code = EVEX_Vmovaps_xmm_k1z_xmmm128 ) OR ( Code = Movapd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vmovapd_xmm_xmmm128 ) OR ( Code = EVEX_Vmovapd_xmm_k1z_xmmm128 ) OR ( Code = Movaps_xmmm128_xmm ) OR
+    ( Code = VEX_Vmovaps_xmmm128_xmm ) OR ( Code = EVEX_Vmovaps_xmmm128_k1z_xmm ) OR ( Code = Movapd_xmmm128_xmm ) OR
+    ( Code = VEX_Vmovapd_xmmm128_xmm ) OR ( Code = EVEX_Vmovapd_xmmm128_k1z_xmm ) OR ( Code = Cvtpi2ps_xmm_mmm64 ) OR
+    ( Code = Cvtpi2pd_xmm_mmm64 ) OR ( Code = Cvtsi2ss_xmm_rm32 ) OR ( Code = Cvtsi2ss_xmm_rm64 ) OR
+    ( Code = VEX_Vcvtsi2ss_xmm_xmm_rm32 ) OR ( Code = VEX_Vcvtsi2ss_xmm_xmm_rm64 ) OR ( Code = EVEX_Vcvtsi2ss_xmm_xmm_rm32_er ) OR
+    ( Code = EVEX_Vcvtsi2ss_xmm_xmm_rm64_er ) OR ( Code = Cvtsi2sd_xmm_rm32 ) OR ( Code = Cvtsi2sd_xmm_rm64 ) OR
+    ( Code = VEX_Vcvtsi2sd_xmm_xmm_rm32 ) OR ( Code = VEX_Vcvtsi2sd_xmm_xmm_rm64 ) OR ( Code = EVEX_Vcvtsi2sd_xmm_xmm_rm32_er ) OR
+    ( Code = EVEX_Vcvtsi2sd_xmm_xmm_rm64_er ) OR ( Code = Movntps_m128_xmm ) OR ( Code = VEX_Vmovntps_m128_xmm ) OR
+    ( Code = EVEX_Vmovntps_m128_xmm ) OR ( Code = Movntpd_m128_xmm ) OR ( Code = VEX_Vmovntpd_m128_xmm ) OR
+    ( Code = EVEX_Vmovntpd_m128_xmm ) OR ( Code = Movntss_m32_xmm ) OR ( Code = Movntsd_m64_xmm ) OR
+    ( Code = Cvttps2pi_mm_xmmm64 ) OR ( Code = Cvttpd2pi_mm_xmmm128 ) OR ( Code = Cvttss2si_r32_xmmm32 ) OR
+    ( Code = Cvttss2si_r64_xmmm32 ) OR ( Code = VEX_Vcvttss2si_r32_xmmm32 ) OR ( Code = VEX_Vcvttss2si_r64_xmmm32 ) OR
+    ( Code = EVEX_Vcvttss2si_r32_xmmm32_sae ) OR ( Code = EVEX_Vcvttss2si_r64_xmmm32_sae ) OR ( Code = Cvttsd2si_r32_xmmm64 ) OR
+    ( Code = Cvttsd2si_r64_xmmm64 ) OR ( Code = VEX_Vcvttsd2si_r32_xmmm64 ) OR ( Code = VEX_Vcvttsd2si_r64_xmmm64 ) OR
+    ( Code = EVEX_Vcvttsd2si_r32_xmmm64_sae ) OR ( Code = EVEX_Vcvttsd2si_r64_xmmm64_sae ) OR ( Code = Cvtps2pi_mm_xmmm64 ) OR
+    ( Code = Cvtpd2pi_mm_xmmm128 ) OR ( Code = Cvtss2si_r32_xmmm32 ) OR ( Code = Cvtss2si_r64_xmmm32 ) OR
+    ( Code = VEX_Vcvtss2si_r32_xmmm32 ) OR ( Code = VEX_Vcvtss2si_r64_xmmm32 ) OR ( Code = EVEX_Vcvtss2si_r32_xmmm32_er ) OR
+    ( Code = EVEX_Vcvtss2si_r64_xmmm32_er ) OR ( Code = Cvtsd2si_r32_xmmm64 ) OR ( Code = Cvtsd2si_r64_xmmm64 ) OR
+    ( Code = VEX_Vcvtsd2si_r32_xmmm64 ) OR ( Code = VEX_Vcvtsd2si_r64_xmmm64 ) OR ( Code = EVEX_Vcvtsd2si_r32_xmmm64_er ) OR
+    ( Code = EVEX_Vcvtsd2si_r64_xmmm64_er ) OR ( Code = Ucomiss_xmm_xmmm32 ) OR ( Code = VEX_Vucomiss_xmm_xmmm32 ) OR
+    ( Code = EVEX_Vucomiss_xmm_xmmm32_sae ) OR ( Code = Ucomisd_xmm_xmmm64 ) OR ( Code = VEX_Vucomisd_xmm_xmmm64 ) OR
+    ( Code = EVEX_Vucomisd_xmm_xmmm64_sae ) OR ( Code = Comiss_xmm_xmmm32 ) OR ( Code = Comisd_xmm_xmmm64 ) OR
+    ( Code = VEX_Vcomiss_xmm_xmmm32 ) OR ( Code = VEX_Vcomisd_xmm_xmmm64 ) OR ( Code = EVEX_Vcomiss_xmm_xmmm32_sae ) OR
+    ( Code = EVEX_Vcomisd_xmm_xmmm64_sae ) OR ( Code = Movmskps_r32_xmm ) OR ( Code = Movmskps_r64_xmm ) OR
+    ( Code = VEX_Vmovmskps_r32_xmm ) OR ( Code = VEX_Vmovmskps_r64_xmm ) OR ( Code = Movmskpd_r32_xmm ) OR
+    ( Code = Movmskpd_r64_xmm ) OR ( Code = VEX_Vmovmskpd_r32_xmm ) OR ( Code = VEX_Vmovmskpd_r64_xmm ) OR
+    ( Code = Sqrtps_xmm_xmmm128 ) OR ( Code = VEX_Vsqrtps_xmm_xmmm128 ) OR ( Code = EVEX_Vsqrtps_xmm_k1z_xmmm128b32 ) OR
+    ( Code = Sqrtpd_xmm_xmmm128 ) OR ( Code = VEX_Vsqrtpd_xmm_xmmm128 ) OR ( Code = EVEX_Vsqrtpd_xmm_k1z_xmmm128b64 ) OR
+    ( Code = Sqrtss_xmm_xmmm32 ) OR ( Code = VEX_Vsqrtss_xmm_xmm_xmmm32 ) OR ( Code = EVEX_Vsqrtss_xmm_k1z_xmm_xmmm32_er ) OR
+    ( Code = Sqrtsd_xmm_xmmm64 ) OR ( Code = VEX_Vsqrtsd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vsqrtsd_xmm_k1z_xmm_xmmm64_er ) OR
+    ( Code = Rsqrtps_xmm_xmmm128 ) OR ( Code = VEX_Vrsqrtps_xmm_xmmm128 ) OR ( Code = Rsqrtss_xmm_xmmm32 ) OR
+    ( Code = VEX_Vrsqrtss_xmm_xmm_xmmm32 ) OR ( Code = Rcpps_xmm_xmmm128 ) OR ( Code = VEX_Vrcpps_xmm_xmmm128 ) OR
+    ( Code = Rcpss_xmm_xmmm32 ) OR ( Code = VEX_Vrcpss_xmm_xmm_xmmm32 ) OR ( Code = Andps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vandps_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vandps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Andpd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vandpd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vandpd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Andnps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vandnps_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vandnps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Andnpd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vandnpd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vandnpd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Orps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vorps_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vorps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Orpd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vorpd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vorpd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Xorps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vxorps_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vxorps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Xorpd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vxorpd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vxorpd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Addps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vaddps_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vaddps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Addpd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vaddpd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vaddpd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Addss_xmm_xmmm32 ) OR
+    ( Code = VEX_Vaddss_xmm_xmm_xmmm32 ) OR ( Code = EVEX_Vaddss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = Addsd_xmm_xmmm64 ) OR
+    ( Code = VEX_Vaddsd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vaddsd_xmm_k1z_xmm_xmmm64_er ) OR ( Code = Mulps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vmulps_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vmulps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Mulpd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vmulpd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vmulpd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Mulss_xmm_xmmm32 ) OR
+    ( Code = VEX_Vmulss_xmm_xmm_xmmm32 ) OR ( Code = EVEX_Vmulss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = Mulsd_xmm_xmmm64 ) OR
+    ( Code = VEX_Vmulsd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vmulsd_xmm_k1z_xmm_xmmm64_er ) OR ( Code = Cvtps2pd_xmm_xmmm64 ) OR
+    ( Code = VEX_Vcvtps2pd_xmm_xmmm64 ) OR ( Code = VEX_Vcvtps2pd_ymm_xmmm128 ) OR ( Code = EVEX_Vcvtps2pd_xmm_k1z_xmmm64b32 ) OR
+    ( Code = EVEX_Vcvtps2pd_ymm_k1z_xmmm128b32 ) OR ( Code = Cvtpd2ps_xmm_xmmm128 ) OR ( Code = VEX_Vcvtpd2ps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vcvtpd2ps_xmm_ymmm256 ) OR ( Code = EVEX_Vcvtpd2ps_xmm_k1z_xmmm128b64 ) OR ( Code = EVEX_Vcvtpd2ps_xmm_k1z_ymmm256b64 ) OR
+    ( Code = Cvtss2sd_xmm_xmmm32 ) OR ( Code = VEX_Vcvtss2sd_xmm_xmm_xmmm32 ) OR ( Code = EVEX_Vcvtss2sd_xmm_k1z_xmm_xmmm32_sae ) OR
+    ( Code = Cvtsd2ss_xmm_xmmm64 ) OR ( Code = VEX_Vcvtsd2ss_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vcvtsd2ss_xmm_k1z_xmm_xmmm64_er ) OR
+    ( Code = Cvtdq2ps_xmm_xmmm128 ) OR ( Code = VEX_Vcvtdq2ps_xmm_xmmm128 ) OR ( Code = EVEX_Vcvtdq2ps_xmm_k1z_xmmm128b32 ) OR
+    ( Code = EVEX_Vcvtqq2ps_xmm_k1z_xmmm128b64 ) OR ( Code = EVEX_Vcvtqq2ps_xmm_k1z_ymmm256b64 ) OR ( Code = Cvtps2dq_xmm_xmmm128 ) OR
+    ( Code = VEX_Vcvtps2dq_xmm_xmmm128 ) OR ( Code = EVEX_Vcvtps2dq_xmm_k1z_xmmm128b32 ) OR ( Code = Cvttps2dq_xmm_xmmm128 ) OR
+    ( Code = VEX_Vcvttps2dq_xmm_xmmm128 ) OR ( Code = EVEX_Vcvttps2dq_xmm_k1z_xmmm128b32 ) OR ( Code = Subps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vsubps_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vsubps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Subpd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vsubpd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vsubpd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Subss_xmm_xmmm32 ) OR
+    ( Code = VEX_Vsubss_xmm_xmm_xmmm32 ) OR ( Code = EVEX_Vsubss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = Subsd_xmm_xmmm64 ) OR
+    ( Code = VEX_Vsubsd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vsubsd_xmm_k1z_xmm_xmmm64_er ) OR ( Code = Minps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vminps_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vminps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Minpd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vminpd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vminpd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Minss_xmm_xmmm32 ) OR
+    ( Code = VEX_Vminss_xmm_xmm_xmmm32 ) OR ( Code = EVEX_Vminss_xmm_k1z_xmm_xmmm32_sae ) OR ( Code = Minsd_xmm_xmmm64 ) OR
+    ( Code = VEX_Vminsd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vminsd_xmm_k1z_xmm_xmmm64_sae ) OR ( Code = Divps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vdivps_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vdivps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Divpd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vdivpd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vdivpd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Divss_xmm_xmmm32 ) OR
+    ( Code = VEX_Vdivss_xmm_xmm_xmmm32 ) OR ( Code = EVEX_Vdivss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = Divsd_xmm_xmmm64 ) OR
+    ( Code = VEX_Vdivsd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vdivsd_xmm_k1z_xmm_xmmm64_er ) OR ( Code = Maxps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vmaxps_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vmaxps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Maxpd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vmaxpd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vmaxpd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Maxss_xmm_xmmm32 ) OR
+    ( Code = VEX_Vmaxss_xmm_xmm_xmmm32 ) OR ( Code = EVEX_Vmaxss_xmm_k1z_xmm_xmmm32_sae ) OR ( Code = Maxsd_xmm_xmmm64 ) OR
+    ( Code = VEX_Vmaxsd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vmaxsd_xmm_k1z_xmm_xmmm64_sae ) OR ( Code = Punpcklbw_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpunpcklbw_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpunpcklbw_xmm_k1z_xmm_xmmm128 ) OR ( Code = Punpcklwd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpunpcklwd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpunpcklwd_xmm_k1z_xmm_xmmm128 ) OR ( Code = Punpckldq_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpunpckldq_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpunpckldq_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Packsswb_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpacksswb_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpacksswb_xmm_k1z_xmm_xmmm128 ) OR ( Code = Pcmpgtb_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpcmpgtb_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpcmpgtb_kr_k1_xmm_xmmm128 ) OR ( Code = Pcmpgtw_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpcmpgtw_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpcmpgtw_kr_k1_xmm_xmmm128 ) OR ( Code = Pcmpgtd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpcmpgtd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpcmpgtd_kr_k1_xmm_xmmm128b32 ) OR ( Code = Packuswb_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpackuswb_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpackuswb_xmm_k1z_xmm_xmmm128 ) OR ( Code = Punpckhbw_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpunpckhbw_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpunpckhbw_xmm_k1z_xmm_xmmm128 ) OR ( Code = Punpckhwd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpunpckhwd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpunpckhwd_xmm_k1z_xmm_xmmm128 ) OR ( Code = Punpckhdq_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpunpckhdq_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpunpckhdq_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Packssdw_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpackssdw_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpackssdw_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Punpcklqdq_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpunpcklqdq_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpunpcklqdq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Punpckhqdq_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpunpckhqdq_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpunpckhqdq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Movd_xmm_rm32 ) OR
+    ( Code = Movq_xmm_rm64 ) OR ( Code = VEX_Vmovd_xmm_rm32 ) OR ( Code = VEX_Vmovq_xmm_rm64 ) OR
+    ( Code = EVEX_Vmovd_xmm_rm32 ) OR ( Code = EVEX_Vmovq_xmm_rm64 ) OR ( Code = Movdqa_xmm_xmmm128 ) OR
+    ( Code = VEX_Vmovdqa_xmm_xmmm128 ) OR ( Code = EVEX_Vmovdqa32_xmm_k1z_xmmm128 ) OR ( Code = EVEX_Vmovdqa64_xmm_k1z_xmmm128 ) OR
+    ( Code = Movdqu_xmm_xmmm128 ) OR ( Code = VEX_Vmovdqu_xmm_xmmm128 ) OR ( Code = EVEX_Vmovdqu32_xmm_k1z_xmmm128 ) OR
+    ( Code = EVEX_Vmovdqu64_xmm_k1z_xmmm128 ) OR ( Code = EVEX_Vmovdqu8_xmm_k1z_xmmm128 ) OR ( Code = EVEX_Vmovdqu16_xmm_k1z_xmmm128 ) OR
+    ( Code = Pshufd_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vpshufd_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vpshufd_xmm_k1z_xmmm128b32_imm8 ) OR
+    ( Code = Pshufhw_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vpshufhw_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vpshufhw_xmm_k1z_xmmm128_imm8 ) OR
+    ( Code = Pshuflw_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vpshuflw_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vpshuflw_xmm_k1z_xmmm128_imm8 ) OR
+    ( Code = Psrlw_xmm_imm8 ) OR ( Code = VEX_Vpsrlw_xmm_xmm_imm8 ) OR ( Code = EVEX_Vpsrlw_xmm_k1z_xmmm128_imm8 ) OR
+    ( Code = Psraw_xmm_imm8 ) OR ( Code = VEX_Vpsraw_xmm_xmm_imm8 ) OR ( Code = EVEX_Vpsraw_xmm_k1z_xmmm128_imm8 ) OR
+    ( Code = Psllw_xmm_imm8 ) OR ( Code = VEX_Vpsllw_xmm_xmm_imm8 ) OR ( Code = EVEX_Vpsllw_xmm_k1z_xmmm128_imm8 ) OR
+    ( Code = EVEX_Vprord_xmm_k1z_xmmm128b32_imm8 ) OR ( Code = EVEX_Vprorq_xmm_k1z_xmmm128b64_imm8 ) OR ( Code = EVEX_Vprold_xmm_k1z_xmmm128b32_imm8 ) OR
+    ( Code = EVEX_Vprolq_xmm_k1z_xmmm128b64_imm8 ) OR ( Code = Psrld_xmm_imm8 ) OR ( Code = VEX_Vpsrld_xmm_xmm_imm8 ) OR
+    ( Code = EVEX_Vpsrld_xmm_k1z_xmmm128b32_imm8 ) OR ( Code = Psrad_xmm_imm8 ) OR ( Code = VEX_Vpsrad_xmm_xmm_imm8 ) OR
+    ( Code = EVEX_Vpsrad_xmm_k1z_xmmm128b32_imm8 ) OR ( Code = EVEX_Vpsraq_xmm_k1z_xmmm128b64_imm8 ) OR ( Code = Pslld_xmm_imm8 ) OR
+    ( Code = VEX_Vpslld_xmm_xmm_imm8 ) OR ( Code = EVEX_Vpslld_xmm_k1z_xmmm128b32_imm8 ) OR ( Code = Psrlq_xmm_imm8 ) OR
+    ( Code = VEX_Vpsrlq_xmm_xmm_imm8 ) OR ( Code = EVEX_Vpsrlq_xmm_k1z_xmmm128b64_imm8 ) OR ( Code = Psrldq_xmm_imm8 ) OR
+    ( Code = VEX_Vpsrldq_xmm_xmm_imm8 ) OR ( Code = EVEX_Vpsrldq_xmm_xmmm128_imm8 ) OR ( Code = Psllq_xmm_imm8 ) OR
+    ( Code = VEX_Vpsllq_xmm_xmm_imm8 ) OR ( Code = EVEX_Vpsllq_xmm_k1z_xmmm128b64_imm8 ) OR ( Code = Pslldq_xmm_imm8 ) OR
+    ( Code = VEX_Vpslldq_xmm_xmm_imm8 ) OR ( Code = EVEX_Vpslldq_xmm_xmmm128_imm8 ) OR ( Code = Pcmpeqb_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpcmpeqb_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpcmpeqb_kr_k1_xmm_xmmm128 ) OR ( Code = Pcmpeqw_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpcmpeqw_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpcmpeqw_kr_k1_xmm_xmmm128 ) OR ( Code = Pcmpeqd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpcmpeqd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpcmpeqd_kr_k1_xmm_xmmm128b32 ) OR ( Code = EVEX_Vcvttps2udq_xmm_k1z_xmmm128b32 ) OR
+    ( Code = EVEX_Vcvttpd2udq_xmm_k1z_xmmm128b64 ) OR ( Code = EVEX_Vcvttpd2udq_xmm_k1z_ymmm256b64 ) OR ( Code = Extrq_xmm_imm8_imm8 ) OR
+    ( Code = EVEX_Vcvttps2uqq_xmm_k1z_xmmm64b32 ) OR ( Code = EVEX_Vcvttps2uqq_ymm_k1z_xmmm128b32 ) OR ( Code = EVEX_Vcvttpd2uqq_xmm_k1z_xmmm128b64 ) OR
+    ( Code = EVEX_Vcvttss2usi_r32_xmmm32_sae ) OR ( Code = EVEX_Vcvttss2usi_r64_xmmm32_sae ) OR ( Code = Insertq_xmm_xmm_imm8_imm8 ) OR
+    ( Code = EVEX_Vcvttsd2usi_r32_xmmm64_sae ) OR ( Code = EVEX_Vcvttsd2usi_r64_xmmm64_sae ) OR ( Code = EVEX_Vcvtps2udq_xmm_k1z_xmmm128b32 ) OR
+    ( Code = EVEX_Vcvtpd2udq_xmm_k1z_xmmm128b64 ) OR ( Code = EVEX_Vcvtpd2udq_xmm_k1z_ymmm256b64 ) OR ( Code = Extrq_xmm_xmm ) OR
+    ( Code = EVEX_Vcvtps2uqq_xmm_k1z_xmmm64b32 ) OR ( Code = EVEX_Vcvtps2uqq_ymm_k1z_xmmm128b32 ) OR ( Code = EVEX_Vcvtpd2uqq_xmm_k1z_xmmm128b64 ) OR
+    ( Code = EVEX_Vcvtss2usi_r32_xmmm32_er ) OR ( Code = EVEX_Vcvtss2usi_r64_xmmm32_er ) OR ( Code = Insertq_xmm_xmm ) OR
+    ( Code = EVEX_Vcvtsd2usi_r32_xmmm64_er ) OR ( Code = EVEX_Vcvtsd2usi_r64_xmmm64_er ) OR ( Code = EVEX_Vcvttps2qq_xmm_k1z_xmmm64b32 ) OR
+    ( Code = EVEX_Vcvttps2qq_ymm_k1z_xmmm128b32 ) OR ( Code = EVEX_Vcvttpd2qq_xmm_k1z_xmmm128b64 ) OR ( Code = EVEX_Vcvtudq2pd_xmm_k1z_xmmm64b32 ) OR
+    ( Code = EVEX_Vcvtudq2pd_ymm_k1z_xmmm128b32 ) OR ( Code = EVEX_Vcvtuqq2pd_xmm_k1z_xmmm128b64 ) OR ( Code = EVEX_Vcvtudq2ps_xmm_k1z_xmmm128b32 ) OR
+    ( Code = EVEX_Vcvtuqq2ps_xmm_k1z_xmmm128b64 ) OR ( Code = EVEX_Vcvtuqq2ps_xmm_k1z_ymmm256b64 ) OR ( Code = EVEX_Vcvtps2qq_xmm_k1z_xmmm64b32 ) OR
+    ( Code = EVEX_Vcvtps2qq_ymm_k1z_xmmm128b32 ) OR ( Code = EVEX_Vcvtpd2qq_xmm_k1z_xmmm128b64 ) OR ( Code = EVEX_Vcvtusi2ss_xmm_xmm_rm32_er ) OR
+    ( Code = EVEX_Vcvtusi2ss_xmm_xmm_rm64_er ) OR ( Code = EVEX_Vcvtusi2sd_xmm_xmm_rm32_er ) OR ( Code = EVEX_Vcvtusi2sd_xmm_xmm_rm64_er ) OR
+    ( Code = Haddpd_xmm_xmmm128 ) OR ( Code = VEX_Vhaddpd_xmm_xmm_xmmm128 ) OR ( Code = Haddps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vhaddps_xmm_xmm_xmmm128 ) OR ( Code = Hsubpd_xmm_xmmm128 ) OR ( Code = VEX_Vhsubpd_xmm_xmm_xmmm128 ) OR
+    ( Code = Hsubps_xmm_xmmm128 ) OR ( Code = VEX_Vhsubps_xmm_xmm_xmmm128 ) OR ( Code = Movd_rm32_xmm ) OR
+    ( Code = Movq_rm64_xmm ) OR ( Code = VEX_Vmovd_rm32_xmm ) OR ( Code = VEX_Vmovq_rm64_xmm ) OR
+    ( Code = EVEX_Vmovd_rm32_xmm ) OR ( Code = EVEX_Vmovq_rm64_xmm ) OR ( Code = Movq_xmm_xmmm64 ) OR
+    ( Code = VEX_Vmovq_xmm_xmmm64 ) OR ( Code = EVEX_Vmovq_xmm_xmmm64 ) OR ( Code = Movdqa_xmmm128_xmm ) OR
+    ( Code = VEX_Vmovdqa_xmmm128_xmm ) OR ( Code = EVEX_Vmovdqa32_xmmm128_k1z_xmm ) OR ( Code = EVEX_Vmovdqa64_xmmm128_k1z_xmm ) OR
+    ( Code = Movdqu_xmmm128_xmm ) OR ( Code = VEX_Vmovdqu_xmmm128_xmm ) OR ( Code = EVEX_Vmovdqu32_xmmm128_k1z_xmm ) OR
+    ( Code = EVEX_Vmovdqu64_xmmm128_k1z_xmm ) OR ( Code = EVEX_Vmovdqu8_xmmm128_k1z_xmm ) OR ( Code = EVEX_Vmovdqu16_xmmm128_k1z_xmm ) OR
+    ( Code = Cmpps_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vcmpps_xmm_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vcmpps_kr_k1_xmm_xmmm128b32_imm8 ) OR
+    ( Code = Cmppd_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vcmppd_xmm_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vcmppd_kr_k1_xmm_xmmm128b64_imm8 ) OR
+    ( Code = Cmpss_xmm_xmmm32_imm8 ) OR ( Code = VEX_Vcmpss_xmm_xmm_xmmm32_imm8 ) OR ( Code = EVEX_Vcmpss_kr_k1_xmm_xmmm32_imm8_sae ) OR
+    ( Code = Cmpsd_xmm_xmmm64_imm8 ) OR ( Code = VEX_Vcmpsd_xmm_xmm_xmmm64_imm8 ) OR ( Code = EVEX_Vcmpsd_kr_k1_xmm_xmmm64_imm8_sae ) OR
+    ( Code = Pinsrw_xmm_r32m16_imm8 ) OR ( Code = Pinsrw_xmm_r64m16_imm8 ) OR ( Code = VEX_Vpinsrw_xmm_xmm_r32m16_imm8 ) OR
+    ( Code = VEX_Vpinsrw_xmm_xmm_r64m16_imm8 ) OR ( Code = EVEX_Vpinsrw_xmm_xmm_r32m16_imm8 ) OR ( Code = EVEX_Vpinsrw_xmm_xmm_r64m16_imm8 ) OR
+    ( Code = Pextrw_r32_xmm_imm8 ) OR ( Code = Pextrw_r64_xmm_imm8 ) OR ( Code = VEX_Vpextrw_r32_xmm_imm8 ) OR
+    ( Code = VEX_Vpextrw_r64_xmm_imm8 ) OR ( Code = EVEX_Vpextrw_r32_xmm_imm8 ) OR ( Code = EVEX_Vpextrw_r64_xmm_imm8 ) OR
+    ( Code = Shufps_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vshufps_xmm_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vshufps_xmm_k1z_xmm_xmmm128b32_imm8 ) OR
+    ( Code = Shufpd_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vshufpd_xmm_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vshufpd_xmm_k1z_xmm_xmmm128b64_imm8 ) OR
+    ( Code = Addsubpd_xmm_xmmm128 ) OR ( Code = VEX_Vaddsubpd_xmm_xmm_xmmm128 ) OR ( Code = Addsubps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vaddsubps_xmm_xmm_xmmm128 ) OR ( Code = Psrlw_xmm_xmmm128 ) OR ( Code = VEX_Vpsrlw_xmm_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpsrlw_ymm_ymm_xmmm128 ) OR ( Code = EVEX_Vpsrlw_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpsrlw_ymm_k1z_ymm_xmmm128 ) OR
+    ( Code = EVEX_Vpsrlw_zmm_k1z_zmm_xmmm128 ) OR ( Code = Psrld_xmm_xmmm128 ) OR ( Code = VEX_Vpsrld_xmm_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpsrld_ymm_ymm_xmmm128 ) OR ( Code = EVEX_Vpsrld_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpsrld_ymm_k1z_ymm_xmmm128 ) OR
+    ( Code = EVEX_Vpsrld_zmm_k1z_zmm_xmmm128 ) OR ( Code = Psrlq_xmm_xmmm128 ) OR ( Code = VEX_Vpsrlq_xmm_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpsrlq_ymm_ymm_xmmm128 ) OR ( Code = EVEX_Vpsrlq_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpsrlq_ymm_k1z_ymm_xmmm128 ) OR
+    ( Code = EVEX_Vpsrlq_zmm_k1z_zmm_xmmm128 ) OR ( Code = Paddq_xmm_xmmm128 ) OR ( Code = VEX_Vpaddq_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpaddq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Pmullw_xmm_xmmm128 ) OR ( Code = VEX_Vpmullw_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpmullw_xmm_k1z_xmm_xmmm128 ) OR ( Code = Movq_xmmm64_xmm ) OR ( Code = VEX_Vmovq_xmmm64_xmm ) OR
+    ( Code = EVEX_Vmovq_xmmm64_xmm ) OR ( Code = Movq2dq_xmm_mm ) OR ( Code = Movdq2q_mm_xmm ) OR
+    ( Code = Pmovmskb_r32_xmm ) OR ( Code = Pmovmskb_r64_xmm ) OR ( Code = VEX_Vpmovmskb_r32_xmm ) OR
+    ( Code = VEX_Vpmovmskb_r64_xmm ) OR ( Code = Psubusb_xmm_xmmm128 ) OR ( Code = VEX_Vpsubusb_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpsubusb_xmm_k1z_xmm_xmmm128 ) OR ( Code = Psubusw_xmm_xmmm128 ) OR ( Code = VEX_Vpsubusw_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpsubusw_xmm_k1z_xmm_xmmm128 ) OR ( Code = Pminub_xmm_xmmm128 ) OR ( Code = VEX_Vpminub_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpminub_xmm_k1z_xmm_xmmm128 ) OR ( Code = Pand_xmm_xmmm128 ) OR ( Code = VEX_Vpand_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpandd_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpandq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Paddusb_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpaddusb_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpaddusb_xmm_k1z_xmm_xmmm128 ) OR ( Code = Paddusw_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpaddusw_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpaddusw_xmm_k1z_xmm_xmmm128 ) OR ( Code = Pmaxub_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpmaxub_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpmaxub_xmm_k1z_xmm_xmmm128 ) OR ( Code = Pandn_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpandn_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpandnd_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpandnq_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = Pavgb_xmm_xmmm128 ) OR ( Code = VEX_Vpavgb_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpavgb_xmm_k1z_xmm_xmmm128 ) OR
+    ( Code = Psraw_xmm_xmmm128 ) OR ( Code = VEX_Vpsraw_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vpsraw_ymm_ymm_xmmm128 ) OR
+    ( Code = EVEX_Vpsraw_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpsraw_ymm_k1z_ymm_xmmm128 ) OR ( Code = EVEX_Vpsraw_zmm_k1z_zmm_xmmm128 ) OR
+    ( Code = Psrad_xmm_xmmm128 ) OR ( Code = VEX_Vpsrad_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vpsrad_ymm_ymm_xmmm128 ) OR
+    ( Code = EVEX_Vpsrad_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpsrad_ymm_k1z_ymm_xmmm128 ) OR ( Code = EVEX_Vpsrad_zmm_k1z_zmm_xmmm128 ) OR
+    ( Code = EVEX_Vpsraq_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpsraq_ymm_k1z_ymm_xmmm128 ) OR ( Code = EVEX_Vpsraq_zmm_k1z_zmm_xmmm128 ) OR
+    ( Code = Pavgw_xmm_xmmm128 ) OR ( Code = VEX_Vpavgw_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpavgw_xmm_k1z_xmm_xmmm128 ) OR
+    ( Code = Pmulhuw_xmm_xmmm128 ) OR ( Code = VEX_Vpmulhuw_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpmulhuw_xmm_k1z_xmm_xmmm128 ) OR
+    ( Code = Pmulhw_xmm_xmmm128 ) OR ( Code = VEX_Vpmulhw_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpmulhw_xmm_k1z_xmm_xmmm128 ) OR
+    ( Code = Cvttpd2dq_xmm_xmmm128 ) OR ( Code = VEX_Vcvttpd2dq_xmm_xmmm128 ) OR ( Code = VEX_Vcvttpd2dq_xmm_ymmm256 ) OR
+    ( Code = EVEX_Vcvttpd2dq_xmm_k1z_xmmm128b64 ) OR ( Code = EVEX_Vcvttpd2dq_xmm_k1z_ymmm256b64 ) OR ( Code = Cvtdq2pd_xmm_xmmm64 ) OR
+    ( Code = VEX_Vcvtdq2pd_xmm_xmmm64 ) OR ( Code = VEX_Vcvtdq2pd_ymm_xmmm128 ) OR ( Code = EVEX_Vcvtdq2pd_xmm_k1z_xmmm64b32 ) OR
+    ( Code = EVEX_Vcvtdq2pd_ymm_k1z_xmmm128b32 ) OR ( Code = EVEX_Vcvtqq2pd_xmm_k1z_xmmm128b64 ) OR ( Code = Cvtpd2dq_xmm_xmmm128 ) OR
+    ( Code = VEX_Vcvtpd2dq_xmm_xmmm128 ) OR ( Code = VEX_Vcvtpd2dq_xmm_ymmm256 ) OR ( Code = EVEX_Vcvtpd2dq_xmm_k1z_xmmm128b64 ) OR
+    ( Code = EVEX_Vcvtpd2dq_xmm_k1z_ymmm256b64 ) OR ( Code = Movntdq_m128_xmm ) OR ( Code = VEX_Vmovntdq_m128_xmm ) OR
+    ( Code = EVEX_Vmovntdq_m128_xmm ) OR ( Code = Psubsb_xmm_xmmm128 ) OR ( Code = VEX_Vpsubsb_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpsubsb_xmm_k1z_xmm_xmmm128 ) OR ( Code = Psubsw_xmm_xmmm128 ) OR ( Code = VEX_Vpsubsw_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpsubsw_xmm_k1z_xmm_xmmm128 ) OR ( Code = Pminsw_xmm_xmmm128 ) OR ( Code = VEX_Vpminsw_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpminsw_xmm_k1z_xmm_xmmm128 ) OR ( Code = Por_xmm_xmmm128 ) OR ( Code = VEX_Vpor_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpord_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vporq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Paddsb_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpaddsb_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpaddsb_xmm_k1z_xmm_xmmm128 ) OR ( Code = Paddsw_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpaddsw_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpaddsw_xmm_k1z_xmm_xmmm128 ) OR ( Code = Pmaxsw_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpmaxsw_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpmaxsw_xmm_k1z_xmm_xmmm128 ) OR ( Code = Pxor_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpxor_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpxord_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpxorq_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = Lddqu_xmm_m128 ) OR ( Code = VEX_Vlddqu_xmm_m128 ) OR ( Code = Psllw_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpsllw_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vpsllw_ymm_ymm_xmmm128 ) OR ( Code = EVEX_Vpsllw_xmm_k1z_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpsllw_ymm_k1z_ymm_xmmm128 ) OR ( Code = EVEX_Vpsllw_zmm_k1z_zmm_xmmm128 ) OR ( Code = Pslld_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpslld_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vpslld_ymm_ymm_xmmm128 ) OR ( Code = EVEX_Vpslld_xmm_k1z_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpslld_ymm_k1z_ymm_xmmm128 ) OR ( Code = EVEX_Vpslld_zmm_k1z_zmm_xmmm128 ) OR ( Code = Psllq_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpsllq_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vpsllq_ymm_ymm_xmmm128 ) OR ( Code = EVEX_Vpsllq_xmm_k1z_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpsllq_ymm_k1z_ymm_xmmm128 ) OR ( Code = EVEX_Vpsllq_zmm_k1z_zmm_xmmm128 ) OR ( Code = Pmuludq_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpmuludq_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpmuludq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Pmaddwd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpmaddwd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpmaddwd_xmm_k1z_xmm_xmmm128 ) OR ( Code = Psadbw_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpsadbw_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpsadbw_xmm_xmm_xmmm128 ) OR ( Code = Maskmovdqu_rDI_xmm_xmm ) OR
+    ( Code = VEX_Vmaskmovdqu_rDI_xmm_xmm ) OR ( Code = Psubb_xmm_xmmm128 ) OR ( Code = VEX_Vpsubb_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpsubb_xmm_k1z_xmm_xmmm128 ) OR ( Code = Psubw_xmm_xmmm128 ) OR ( Code = VEX_Vpsubw_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpsubw_xmm_k1z_xmm_xmmm128 ) OR ( Code = Psubd_xmm_xmmm128 ) OR ( Code = VEX_Vpsubd_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpsubd_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Psubq_xmm_xmmm128 ) OR ( Code = VEX_Vpsubq_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpsubq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Paddb_xmm_xmmm128 ) OR ( Code = VEX_Vpaddb_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpaddb_xmm_k1z_xmm_xmmm128 ) OR ( Code = Paddw_xmm_xmmm128 ) OR ( Code = VEX_Vpaddw_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpaddw_xmm_k1z_xmm_xmmm128 ) OR ( Code = Paddd_xmm_xmmm128 ) OR ( Code = VEX_Vpaddd_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpaddd_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = Pshufb_xmm_xmmm128 ) OR ( Code = VEX_Vpshufb_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpshufb_xmm_k1z_xmm_xmmm128 ) OR ( Code = Phaddw_xmm_xmmm128 ) OR ( Code = VEX_Vphaddw_xmm_xmm_xmmm128 ) OR
+    ( Code = Phaddd_xmm_xmmm128 ) OR ( Code = VEX_Vphaddd_xmm_xmm_xmmm128 ) OR ( Code = Phaddsw_xmm_xmmm128 ) OR
+    ( Code = VEX_Vphaddsw_xmm_xmm_xmmm128 ) OR ( Code = Pmaddubsw_xmm_xmmm128 ) OR ( Code = VEX_Vpmaddubsw_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpmaddubsw_xmm_k1z_xmm_xmmm128 ) OR ( Code = Phsubw_xmm_xmmm128 ) OR ( Code = VEX_Vphsubw_xmm_xmm_xmmm128 ) OR
+    ( Code = Phsubd_xmm_xmmm128 ) OR ( Code = VEX_Vphsubd_xmm_xmm_xmmm128 ) OR ( Code = Phsubsw_xmm_xmmm128 ) OR
+    ( Code = VEX_Vphsubsw_xmm_xmm_xmmm128 ) OR ( Code = Psignb_xmm_xmmm128 ) OR ( Code = VEX_Vpsignb_xmm_xmm_xmmm128 ) OR
+    ( Code = Psignw_xmm_xmmm128 ) OR ( Code = VEX_Vpsignw_xmm_xmm_xmmm128 ) OR ( Code = Psignd_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpsignd_xmm_xmm_xmmm128 ) OR ( Code = Pmulhrsw_xmm_xmmm128 ) OR ( Code = VEX_Vpmulhrsw_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpmulhrsw_xmm_k1z_xmm_xmmm128 ) OR ( Code = VEX_Vpermilps_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpermilps_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = VEX_Vpermilpd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpermilpd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vtestps_xmm_xmmm128 ) OR
+    ( Code = VEX_Vtestpd_xmm_xmmm128 ) OR ( Code = Pblendvb_xmm_xmmm128 ) OR ( Code = EVEX_Vpsrlvw_xmm_k1z_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpmovuswb_xmmm64_k1z_xmm ) OR ( Code = EVEX_Vpmovuswb_xmmm128_k1z_ymm ) OR ( Code = EVEX_Vpsravw_xmm_k1z_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpmovusdb_xmmm32_k1z_xmm ) OR ( Code = EVEX_Vpmovusdb_xmmm64_k1z_ymm ) OR ( Code = EVEX_Vpmovusdb_xmmm128_k1z_zmm ) OR
+    ( Code = EVEX_Vpsllvw_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpmovusqb_xmmm16_k1z_xmm ) OR ( Code = EVEX_Vpmovusqb_xmmm32_k1z_ymm ) OR
+    ( Code = EVEX_Vpmovusqb_xmmm64_k1z_zmm ) OR ( Code = VEX_Vcvtph2ps_xmm_xmmm64 ) OR ( Code = VEX_Vcvtph2ps_ymm_xmmm128 ) OR
+    ( Code = EVEX_Vcvtph2ps_xmm_k1z_xmmm64 ) OR ( Code = EVEX_Vcvtph2ps_ymm_k1z_xmmm128 ) OR ( Code = EVEX_Vpmovusdw_xmmm64_k1z_xmm ) OR
+    ( Code = EVEX_Vpmovusdw_xmmm128_k1z_ymm ) OR ( Code = Blendvps_xmm_xmmm128 ) OR ( Code = EVEX_Vprorvd_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vprorvq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = EVEX_Vpmovusqw_xmmm32_k1z_xmm ) OR ( Code = EVEX_Vpmovusqw_xmmm64_k1z_ymm ) OR
+    ( Code = EVEX_Vpmovusqw_xmmm128_k1z_zmm ) OR ( Code = Blendvpd_xmm_xmmm128 ) OR ( Code = EVEX_Vprolvd_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vprolvq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = EVEX_Vpmovusqd_xmmm64_k1z_xmm ) OR ( Code = EVEX_Vpmovusqd_xmmm128_k1z_ymm ) OR
+    ( Code = Ptest_xmm_xmmm128 ) OR ( Code = VEX_Vptest_xmm_xmmm128 ) OR ( Code = VEX_Vbroadcastss_xmm_m32 ) OR
+    ( Code = EVEX_Vbroadcastss_xmm_k1z_xmmm32 ) OR ( Code = EVEX_Vbroadcastss_ymm_k1z_xmmm32 ) OR ( Code = EVEX_Vbroadcastss_zmm_k1z_xmmm32 ) OR
+    ( Code = EVEX_Vbroadcastf32x2_ymm_k1z_xmmm64 ) OR ( Code = EVEX_Vbroadcastf32x2_zmm_k1z_xmmm64 ) OR ( Code = EVEX_Vbroadcastsd_ymm_k1z_xmmm64 ) OR
+    ( Code = EVEX_Vbroadcastsd_zmm_k1z_xmmm64 ) OR ( Code = Pabsb_xmm_xmmm128 ) OR ( Code = VEX_Vpabsb_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpabsb_xmm_k1z_xmmm128 ) OR ( Code = Pabsw_xmm_xmmm128 ) OR ( Code = VEX_Vpabsw_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpabsw_xmm_k1z_xmmm128 ) OR ( Code = Pabsd_xmm_xmmm128 ) OR ( Code = VEX_Vpabsd_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpabsd_xmm_k1z_xmmm128b32 ) OR ( Code = EVEX_Vpabsq_xmm_k1z_xmmm128b64 ) OR ( Code = Pmovsxbw_xmm_xmmm64 ) OR
+    ( Code = VEX_Vpmovsxbw_xmm_xmmm64 ) OR ( Code = VEX_Vpmovsxbw_ymm_xmmm128 ) OR ( Code = EVEX_Vpmovsxbw_xmm_k1z_xmmm64 ) OR
+    ( Code = EVEX_Vpmovsxbw_ymm_k1z_xmmm128 ) OR ( Code = EVEX_Vpmovswb_xmmm64_k1z_xmm ) OR ( Code = EVEX_Vpmovswb_xmmm128_k1z_ymm ) OR
+    ( Code = Pmovsxbd_xmm_xmmm32 ) OR ( Code = VEX_Vpmovsxbd_xmm_xmmm32 ) OR ( Code = VEX_Vpmovsxbd_ymm_xmmm64 ) OR
+    ( Code = EVEX_Vpmovsxbd_xmm_k1z_xmmm32 ) OR ( Code = EVEX_Vpmovsxbd_ymm_k1z_xmmm64 ) OR ( Code = EVEX_Vpmovsxbd_zmm_k1z_xmmm128 ) OR
+    ( Code = EVEX_Vpmovsdb_xmmm32_k1z_xmm ) OR ( Code = EVEX_Vpmovsdb_xmmm64_k1z_ymm ) OR ( Code = EVEX_Vpmovsdb_xmmm128_k1z_zmm ) OR
+    ( Code = Pmovsxbq_xmm_xmmm16 ) OR ( Code = VEX_Vpmovsxbq_xmm_xmmm16 ) OR ( Code = VEX_Vpmovsxbq_ymm_xmmm32 ) OR
+    ( Code = EVEX_Vpmovsxbq_xmm_k1z_xmmm16 ) OR ( Code = EVEX_Vpmovsxbq_ymm_k1z_xmmm32 ) OR ( Code = EVEX_Vpmovsxbq_zmm_k1z_xmmm64 ) OR
+    ( Code = EVEX_Vpmovsqb_xmmm16_k1z_xmm ) OR ( Code = EVEX_Vpmovsqb_xmmm32_k1z_ymm ) OR ( Code = EVEX_Vpmovsqb_xmmm64_k1z_zmm ) OR
+    ( Code = Pmovsxwd_xmm_xmmm64 ) OR ( Code = VEX_Vpmovsxwd_xmm_xmmm64 ) OR ( Code = VEX_Vpmovsxwd_ymm_xmmm128 ) OR
+    ( Code = EVEX_Vpmovsxwd_xmm_k1z_xmmm64 ) OR ( Code = EVEX_Vpmovsxwd_ymm_k1z_xmmm128 ) OR ( Code = EVEX_Vpmovsdw_xmmm64_k1z_xmm ) OR
+    ( Code = EVEX_Vpmovsdw_xmmm128_k1z_ymm ) OR ( Code = Pmovsxwq_xmm_xmmm32 ) OR ( Code = VEX_Vpmovsxwq_xmm_xmmm32 ) OR
+    ( Code = VEX_Vpmovsxwq_ymm_xmmm64 ) OR ( Code = EVEX_Vpmovsxwq_xmm_k1z_xmmm32 ) OR ( Code = EVEX_Vpmovsxwq_ymm_k1z_xmmm64 ) OR
+    ( Code = EVEX_Vpmovsxwq_zmm_k1z_xmmm128 ) OR ( Code = EVEX_Vpmovsqw_xmmm32_k1z_xmm ) OR ( Code = EVEX_Vpmovsqw_xmmm64_k1z_ymm ) OR
+    ( Code = EVEX_Vpmovsqw_xmmm128_k1z_zmm ) OR ( Code = Pmovsxdq_xmm_xmmm64 ) OR ( Code = VEX_Vpmovsxdq_xmm_xmmm64 ) OR
+    ( Code = VEX_Vpmovsxdq_ymm_xmmm128 ) OR ( Code = EVEX_Vpmovsxdq_xmm_k1z_xmmm64 ) OR ( Code = EVEX_Vpmovsxdq_ymm_k1z_xmmm128 ) OR
+    ( Code = EVEX_Vpmovsqd_xmmm64_k1z_xmm ) OR ( Code = EVEX_Vpmovsqd_xmmm128_k1z_ymm ) OR ( Code = EVEX_Vptestmb_kr_k1_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vptestmw_kr_k1_xmm_xmmm128 ) OR ( Code = EVEX_Vptestnmb_kr_k1_xmm_xmmm128 ) OR ( Code = EVEX_Vptestnmw_kr_k1_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vptestmd_kr_k1_xmm_xmmm128b32 ) OR ( Code = EVEX_Vptestmq_kr_k1_xmm_xmmm128b64 ) OR ( Code = EVEX_Vptestnmd_kr_k1_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vptestnmq_kr_k1_xmm_xmmm128b64 ) OR ( Code = Pmuldq_xmm_xmmm128 ) OR ( Code = VEX_Vpmuldq_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpmuldq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = EVEX_Vpmovm2b_xmm_kr ) OR ( Code = EVEX_Vpmovm2w_xmm_kr ) OR
+    ( Code = Pcmpeqq_xmm_xmmm128 ) OR ( Code = VEX_Vpcmpeqq_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpcmpeqq_kr_k1_xmm_xmmm128b64 ) OR
+    ( Code = EVEX_Vpmovb2m_kr_xmm ) OR ( Code = EVEX_Vpmovw2m_kr_xmm ) OR ( Code = Movntdqa_xmm_m128 ) OR
+    ( Code = VEX_Vmovntdqa_xmm_m128 ) OR ( Code = EVEX_Vmovntdqa_xmm_m128 ) OR ( Code = EVEX_Vpbroadcastmb2q_xmm_kr ) OR
+    ( Code = Packusdw_xmm_xmmm128 ) OR ( Code = VEX_Vpackusdw_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpackusdw_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = VEX_Vmaskmovps_xmm_xmm_m128 ) OR ( Code = EVEX_Vscalefps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vscalefpd_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = VEX_Vmaskmovpd_xmm_xmm_m128 ) OR ( Code = EVEX_Vscalefss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vscalefsd_xmm_k1z_xmm_xmmm64_er ) OR
+    ( Code = VEX_Vmaskmovps_m128_xmm_xmm ) OR ( Code = VEX_Vmaskmovpd_m128_xmm_xmm ) OR ( Code = Pmovzxbw_xmm_xmmm64 ) OR
+    ( Code = VEX_Vpmovzxbw_xmm_xmmm64 ) OR ( Code = VEX_Vpmovzxbw_ymm_xmmm128 ) OR ( Code = EVEX_Vpmovzxbw_xmm_k1z_xmmm64 ) OR
+    ( Code = EVEX_Vpmovzxbw_ymm_k1z_xmmm128 ) OR ( Code = EVEX_Vpmovwb_xmmm64_k1z_xmm ) OR ( Code = EVEX_Vpmovwb_xmmm128_k1z_ymm ) OR
+    ( Code = Pmovzxbd_xmm_xmmm32 ) OR ( Code = VEX_Vpmovzxbd_xmm_xmmm32 ) OR ( Code = VEX_Vpmovzxbd_ymm_xmmm64 ) OR
+    ( Code = EVEX_Vpmovzxbd_xmm_k1z_xmmm32 ) OR ( Code = EVEX_Vpmovzxbd_ymm_k1z_xmmm64 ) OR ( Code = EVEX_Vpmovzxbd_zmm_k1z_xmmm128 ) OR
+    ( Code = EVEX_Vpmovdb_xmmm32_k1z_xmm ) OR ( Code = EVEX_Vpmovdb_xmmm64_k1z_ymm ) OR ( Code = EVEX_Vpmovdb_xmmm128_k1z_zmm ) OR
+    ( Code = Pmovzxbq_xmm_xmmm16 ) OR ( Code = VEX_Vpmovzxbq_xmm_xmmm16 ) OR ( Code = VEX_Vpmovzxbq_ymm_xmmm32 ) OR
+    ( Code = EVEX_Vpmovzxbq_xmm_k1z_xmmm16 ) OR ( Code = EVEX_Vpmovzxbq_ymm_k1z_xmmm32 ) OR ( Code = EVEX_Vpmovzxbq_zmm_k1z_xmmm64 ) OR
+    ( Code = EVEX_Vpmovqb_xmmm16_k1z_xmm ) OR ( Code = EVEX_Vpmovqb_xmmm32_k1z_ymm ) OR ( Code = EVEX_Vpmovqb_xmmm64_k1z_zmm ) OR
+    ( Code = Pmovzxwd_xmm_xmmm64 ) OR ( Code = VEX_Vpmovzxwd_xmm_xmmm64 ) OR ( Code = VEX_Vpmovzxwd_ymm_xmmm128 ) OR
+    ( Code = EVEX_Vpmovzxwd_xmm_k1z_xmmm64 ) OR ( Code = EVEX_Vpmovzxwd_ymm_k1z_xmmm128 ) OR ( Code = EVEX_Vpmovdw_xmmm64_k1z_xmm ) OR
+    ( Code = EVEX_Vpmovdw_xmmm128_k1z_ymm ) OR ( Code = Pmovzxwq_xmm_xmmm32 ) OR ( Code = VEX_Vpmovzxwq_xmm_xmmm32 ) OR
+    ( Code = VEX_Vpmovzxwq_ymm_xmmm64 ) OR ( Code = EVEX_Vpmovzxwq_xmm_k1z_xmmm32 ) OR ( Code = EVEX_Vpmovzxwq_ymm_k1z_xmmm64 ) OR
+    ( Code = EVEX_Vpmovzxwq_zmm_k1z_xmmm128 ) OR ( Code = EVEX_Vpmovqw_xmmm32_k1z_xmm ) OR ( Code = EVEX_Vpmovqw_xmmm64_k1z_ymm ) OR
+    ( Code = EVEX_Vpmovqw_xmmm128_k1z_zmm ) OR ( Code = Pmovzxdq_xmm_xmmm64 ) OR ( Code = VEX_Vpmovzxdq_xmm_xmmm64 ) OR
+    ( Code = VEX_Vpmovzxdq_ymm_xmmm128 ) OR ( Code = EVEX_Vpmovzxdq_xmm_k1z_xmmm64 ) OR ( Code = EVEX_Vpmovzxdq_ymm_k1z_xmmm128 ) OR
+    ( Code = EVEX_Vpmovqd_xmmm64_k1z_xmm ) OR ( Code = EVEX_Vpmovqd_xmmm128_k1z_ymm ) OR ( Code = Pcmpgtq_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpcmpgtq_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpcmpgtq_kr_k1_xmm_xmmm128b64 ) OR ( Code = Pminsb_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpminsb_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpminsb_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpmovm2d_xmm_kr ) OR
+    ( Code = EVEX_Vpmovm2q_xmm_kr ) OR ( Code = Pminsd_xmm_xmmm128 ) OR ( Code = VEX_Vpminsd_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpminsd_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpminsq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = EVEX_Vpmovd2m_kr_xmm ) OR
+    ( Code = EVEX_Vpmovq2m_kr_xmm ) OR ( Code = Pminuw_xmm_xmmm128 ) OR ( Code = VEX_Vpminuw_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpminuw_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpbroadcastmw2d_xmm_kr ) OR ( Code = Pminud_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpminud_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpminud_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpminuq_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = Pmaxsb_xmm_xmmm128 ) OR ( Code = VEX_Vpmaxsb_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpmaxsb_xmm_k1z_xmm_xmmm128 ) OR
+    ( Code = Pmaxsd_xmm_xmmm128 ) OR ( Code = VEX_Vpmaxsd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpmaxsd_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vpmaxsq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Pmaxuw_xmm_xmmm128 ) OR ( Code = VEX_Vpmaxuw_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpmaxuw_xmm_k1z_xmm_xmmm128 ) OR ( Code = Pmaxud_xmm_xmmm128 ) OR ( Code = VEX_Vpmaxud_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpmaxud_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpmaxuq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = Pmulld_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpmulld_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpmulld_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpmullq_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = Phminposuw_xmm_xmmm128 ) OR ( Code = VEX_Vphminposuw_xmm_xmmm128 ) OR ( Code = EVEX_Vgetexpps_xmm_k1z_xmmm128b32 ) OR
+    ( Code = EVEX_Vgetexppd_xmm_k1z_xmmm128b64 ) OR ( Code = EVEX_Vgetexpss_xmm_k1z_xmm_xmmm32_sae ) OR ( Code = EVEX_Vgetexpsd_xmm_k1z_xmm_xmmm64_sae ) OR
+    ( Code = EVEX_Vplzcntd_xmm_k1z_xmmm128b32 ) OR ( Code = EVEX_Vplzcntq_xmm_k1z_xmmm128b64 ) OR ( Code = VEX_Vpsrlvd_xmm_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpsrlvq_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpsrlvd_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpsrlvq_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = VEX_Vpsravd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpsravd_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpsravq_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = VEX_Vpsllvd_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vpsllvq_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vpsllvd_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vpsllvq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = EVEX_Vrcp14ps_xmm_k1z_xmmm128b32 ) OR ( Code = EVEX_Vrcp14pd_xmm_k1z_xmmm128b64 ) OR
+    ( Code = EVEX_Vrcp14ss_xmm_k1z_xmm_xmmm32 ) OR ( Code = EVEX_Vrcp14sd_xmm_k1z_xmm_xmmm64 ) OR ( Code = EVEX_Vrsqrt14ps_xmm_k1z_xmmm128b32 ) OR
+    ( Code = EVEX_Vrsqrt14pd_xmm_k1z_xmmm128b64 ) OR ( Code = EVEX_Vrsqrt14ss_xmm_k1z_xmm_xmmm32 ) OR ( Code = EVEX_Vrsqrt14sd_xmm_k1z_xmm_xmmm64 ) OR
+    ( Code = EVEX_Vpdpbusd_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpdpbusds_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpdpwssd_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vdpbf16ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpdpwssds_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpopcntb_xmm_k1z_xmmm128 ) OR
+    ( Code = EVEX_Vpopcntw_xmm_k1z_xmmm128 ) OR ( Code = EVEX_Vpopcntd_xmm_k1z_xmmm128b32 ) OR ( Code = EVEX_Vpopcntq_xmm_k1z_xmmm128b64 ) OR
+    ( Code = VEX_Vpbroadcastd_xmm_xmmm32 ) OR ( Code = VEX_Vpbroadcastd_ymm_xmmm32 ) OR ( Code = EVEX_Vpbroadcastd_xmm_k1z_xmmm32 ) OR
+    ( Code = EVEX_Vpbroadcastd_ymm_k1z_xmmm32 ) OR ( Code = EVEX_Vpbroadcastd_zmm_k1z_xmmm32 ) OR ( Code = VEX_Vpbroadcastq_xmm_xmmm64 ) OR
+    ( Code = VEX_Vpbroadcastq_ymm_xmmm64 ) OR ( Code = EVEX_Vbroadcasti32x2_xmm_k1z_xmmm64 ) OR ( Code = EVEX_Vbroadcasti32x2_ymm_k1z_xmmm64 ) OR
+    ( Code = EVEX_Vbroadcasti32x2_zmm_k1z_xmmm64 ) OR ( Code = EVEX_Vpbroadcastq_xmm_k1z_xmmm64 ) OR ( Code = EVEX_Vpbroadcastq_ymm_k1z_xmmm64 ) OR
+    ( Code = EVEX_Vpbroadcastq_zmm_k1z_xmmm64 ) OR ( Code = EVEX_Vpexpandb_xmm_k1z_xmmm128 ) OR ( Code = EVEX_Vpexpandw_xmm_k1z_xmmm128 ) OR
+    ( Code = EVEX_Vpcompressb_xmmm128_k1z_xmm ) OR ( Code = EVEX_Vpcompressw_xmmm128_k1z_xmm ) OR ( Code = EVEX_Vpblendmd_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vpblendmq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = EVEX_Vblendmps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vblendmpd_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = EVEX_Vpblendmb_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpblendmw_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vp2intersectd_kp1_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vp2intersectq_kp1_xmm_xmmm128b64 ) OR ( Code = EVEX_Vpshldvw_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpshldvd_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vpshldvq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = EVEX_Vpshrdvw_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vcvtneps2bf16_xmm_k1z_xmmm128b32 ) OR
+    ( Code = EVEX_Vcvtneps2bf16_xmm_k1z_ymmm256b32 ) OR ( Code = EVEX_Vcvtne2ps2bf16_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpshrdvd_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vpshrdvq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = EVEX_Vpermi2b_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpermi2w_xmm_k1z_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpermi2d_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpermi2q_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = EVEX_Vpermi2ps_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vpermi2pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vpbroadcastb_xmm_xmmm8 ) OR ( Code = VEX_Vpbroadcastb_ymm_xmmm8 ) OR
+    ( Code = EVEX_Vpbroadcastb_xmm_k1z_xmmm8 ) OR ( Code = EVEX_Vpbroadcastb_ymm_k1z_xmmm8 ) OR ( Code = EVEX_Vpbroadcastb_zmm_k1z_xmmm8 ) OR
+    ( Code = VEX_Vpbroadcastw_xmm_xmmm16 ) OR ( Code = VEX_Vpbroadcastw_ymm_xmmm16 ) OR ( Code = EVEX_Vpbroadcastw_xmm_k1z_xmmm16 ) OR
+    ( Code = EVEX_Vpbroadcastw_ymm_k1z_xmmm16 ) OR ( Code = EVEX_Vpbroadcastw_zmm_k1z_xmmm16 ) OR ( Code = EVEX_Vpbroadcastb_xmm_k1z_r32 ) OR
+    ( Code = EVEX_Vpbroadcastw_xmm_k1z_r32 ) OR ( Code = EVEX_Vpbroadcastd_xmm_k1z_r32 ) OR ( Code = EVEX_Vpbroadcastq_xmm_k1z_r64 ) OR
+    ( Code = EVEX_Vpermt2b_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpermt2w_xmm_k1z_xmm_xmmm128 ) OR ( Code = EVEX_Vpermt2d_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vpermt2q_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = EVEX_Vpermt2ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vpermt2pd_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = EVEX_Vpmultishiftqb_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = EVEX_Vexpandps_xmm_k1z_xmmm128 ) OR ( Code = EVEX_Vexpandpd_xmm_k1z_xmmm128 ) OR
+    ( Code = EVEX_Vpexpandd_xmm_k1z_xmmm128 ) OR ( Code = EVEX_Vpexpandq_xmm_k1z_xmmm128 ) OR ( Code = EVEX_Vcompressps_xmmm128_k1z_xmm ) OR
+    ( Code = EVEX_Vcompresspd_xmmm128_k1z_xmm ) OR ( Code = EVEX_Vpcompressd_xmmm128_k1z_xmm ) OR ( Code = EVEX_Vpcompressq_xmmm128_k1z_xmm ) OR
+    ( Code = VEX_Vpmaskmovd_xmm_xmm_m128 ) OR ( Code = VEX_Vpmaskmovq_xmm_xmm_m128 ) OR ( Code = EVEX_Vpermb_xmm_k1z_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vpermw_xmm_k1z_xmm_xmmm128 ) OR ( Code = VEX_Vpmaskmovd_m128_xmm_xmm ) OR ( Code = VEX_Vpmaskmovq_m128_xmm_xmm ) OR
+    ( Code = EVEX_Vpshufbitqmb_kr_k1_xmm_xmmm128 ) OR ( Code = VEX_Vpgatherdd_xmm_vm32x_xmm ) OR ( Code = VEX_Vpgatherdq_xmm_vm32x_xmm ) OR
+    ( Code = EVEX_Vpgatherdd_xmm_k1_vm32x ) OR ( Code = EVEX_Vpgatherdq_xmm_k1_vm32x ) OR ( Code = VEX_Vpgatherqd_xmm_vm64x_xmm ) OR
+    ( Code = VEX_Vpgatherqd_xmm_vm64y_xmm ) OR ( Code = VEX_Vpgatherqq_xmm_vm64x_xmm ) OR ( Code = EVEX_Vpgatherqd_xmm_k1_vm64x ) OR
+    ( Code = EVEX_Vpgatherqd_xmm_k1_vm64y ) OR ( Code = EVEX_Vpgatherqq_xmm_k1_vm64x ) OR ( Code = VEX_Vgatherdps_xmm_vm32x_xmm ) OR
+    ( Code = VEX_Vgatherdpd_xmm_vm32x_xmm ) OR ( Code = EVEX_Vgatherdps_xmm_k1_vm32x ) OR ( Code = EVEX_Vgatherdpd_xmm_k1_vm32x ) OR
+    ( Code = VEX_Vgatherqps_xmm_vm64x_xmm ) OR ( Code = VEX_Vgatherqps_xmm_vm64y_xmm ) OR ( Code = VEX_Vgatherqpd_xmm_vm64x_xmm ) OR
+    ( Code = EVEX_Vgatherqps_xmm_k1_vm64x ) OR ( Code = EVEX_Vgatherqps_xmm_k1_vm64y ) OR ( Code = EVEX_Vgatherqpd_xmm_k1_vm64x ) OR
+    ( Code = VEX_Vfmaddsub132ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfmaddsub132pd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vfmaddsub132ps_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vfmaddsub132pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfmsubadd132ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfmsubadd132pd_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vfmsubadd132ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfmsubadd132pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfmadd132ps_xmm_xmm_xmmm128 ) OR
+    ( Code = VEX_Vfmadd132pd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vfmadd132ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfmadd132pd_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = VEX_Vfmadd132ss_xmm_xmm_xmmm32 ) OR ( Code = VEX_Vfmadd132sd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vfmadd132ss_xmm_k1z_xmm_xmmm32_er ) OR
+    ( Code = EVEX_Vfmadd132sd_xmm_k1z_xmm_xmmm64_er ) OR ( Code = VEX_Vfmsub132ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfmsub132pd_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vfmsub132ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfmsub132pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfmsub132ss_xmm_xmm_xmmm32 ) OR
+    ( Code = VEX_Vfmsub132sd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vfmsub132ss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vfmsub132sd_xmm_k1z_xmm_xmmm64_er ) OR
+    ( Code = EVEX_V4fmaddss_xmm_k1z_xmmp3_m128 ) OR ( Code = VEX_Vfnmadd132ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfnmadd132pd_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vfnmadd132ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfnmadd132pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfnmadd132ss_xmm_xmm_xmmm32 ) OR
+    ( Code = VEX_Vfnmadd132sd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vfnmadd132ss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vfnmadd132sd_xmm_k1z_xmm_xmmm64_er ) OR
+    ( Code = VEX_Vfnmsub132ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfnmsub132pd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vfnmsub132ps_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vfnmsub132pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfnmsub132ss_xmm_xmm_xmmm32 ) OR ( Code = VEX_Vfnmsub132sd_xmm_xmm_xmmm64 ) OR
+    ( Code = EVEX_Vfnmsub132ss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vfnmsub132sd_xmm_k1z_xmm_xmmm64_er ) OR ( Code = EVEX_Vpscatterdd_vm32x_k1_xmm ) OR
+    ( Code = EVEX_Vpscatterdq_vm32x_k1_xmm ) OR ( Code = EVEX_Vpscatterqd_vm64x_k1_xmm ) OR ( Code = EVEX_Vpscatterqd_vm64y_k1_xmm ) OR
+    ( Code = EVEX_Vpscatterqq_vm64x_k1_xmm ) OR ( Code = EVEX_Vscatterdps_vm32x_k1_xmm ) OR ( Code = EVEX_Vscatterdpd_vm32x_k1_xmm ) OR
+    ( Code = EVEX_Vscatterqps_vm64x_k1_xmm ) OR ( Code = EVEX_Vscatterqps_vm64y_k1_xmm ) OR ( Code = EVEX_Vscatterqpd_vm64x_k1_xmm ) OR
+    ( Code = VEX_Vfmaddsub213ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfmaddsub213pd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vfmaddsub213ps_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vfmaddsub213pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfmsubadd213ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfmsubadd213pd_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vfmsubadd213ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfmsubadd213pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfmadd213ps_xmm_xmm_xmmm128 ) OR
+    ( Code = VEX_Vfmadd213pd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vfmadd213ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfmadd213pd_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = VEX_Vfmadd213ss_xmm_xmm_xmmm32 ) OR ( Code = VEX_Vfmadd213sd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vfmadd213ss_xmm_k1z_xmm_xmmm32_er ) OR
+    ( Code = EVEX_Vfmadd213sd_xmm_k1z_xmm_xmmm64_er ) OR ( Code = VEX_Vfmsub213ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfmsub213pd_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vfmsub213ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfmsub213pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfmsub213ss_xmm_xmm_xmmm32 ) OR
+    ( Code = VEX_Vfmsub213sd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vfmsub213ss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vfmsub213sd_xmm_k1z_xmm_xmmm64_er ) OR
+    ( Code = EVEX_V4fnmaddss_xmm_k1z_xmmp3_m128 ) OR ( Code = VEX_Vfnmadd213ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfnmadd213pd_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vfnmadd213ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfnmadd213pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfnmadd213ss_xmm_xmm_xmmm32 ) OR
+    ( Code = VEX_Vfnmadd213sd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vfnmadd213ss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vfnmadd213sd_xmm_k1z_xmm_xmmm64_er ) OR
+    ( Code = VEX_Vfnmsub213ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfnmsub213pd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vfnmsub213ps_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vfnmsub213pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfnmsub213ss_xmm_xmm_xmmm32 ) OR ( Code = VEX_Vfnmsub213sd_xmm_xmm_xmmm64 ) OR
+    ( Code = EVEX_Vfnmsub213ss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vfnmsub213sd_xmm_k1z_xmm_xmmm64_er ) OR ( Code = EVEX_Vpmadd52luq_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = EVEX_Vpmadd52huq_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfmaddsub231ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfmaddsub231pd_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vfmaddsub231ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfmaddsub231pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfmsubadd231ps_xmm_xmm_xmmm128 ) OR
+    ( Code = VEX_Vfmsubadd231pd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vfmsubadd231ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfmsubadd231pd_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = VEX_Vfmadd231ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfmadd231pd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vfmadd231ps_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vfmadd231pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfmadd231ss_xmm_xmm_xmmm32 ) OR ( Code = VEX_Vfmadd231sd_xmm_xmm_xmmm64 ) OR
+    ( Code = EVEX_Vfmadd231ss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vfmadd231sd_xmm_k1z_xmm_xmmm64_er ) OR ( Code = VEX_Vfmsub231ps_xmm_xmm_xmmm128 ) OR
+    ( Code = VEX_Vfmsub231pd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vfmsub231ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfmsub231pd_xmm_k1z_xmm_xmmm128b64 ) OR
+    ( Code = VEX_Vfmsub231ss_xmm_xmm_xmmm32 ) OR ( Code = VEX_Vfmsub231sd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vfmsub231ss_xmm_k1z_xmm_xmmm32_er ) OR
+    ( Code = EVEX_Vfmsub231sd_xmm_k1z_xmm_xmmm64_er ) OR ( Code = VEX_Vfnmadd231ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfnmadd231pd_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vfnmadd231ps_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfnmadd231pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfnmadd231ss_xmm_xmm_xmmm32 ) OR
+    ( Code = VEX_Vfnmadd231sd_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vfnmadd231ss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vfnmadd231sd_xmm_k1z_xmm_xmmm64_er ) OR
+    ( Code = VEX_Vfnmsub231ps_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfnmsub231pd_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vfnmsub231ps_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vfnmsub231pd_xmm_k1z_xmm_xmmm128b64 ) OR ( Code = VEX_Vfnmsub231ss_xmm_xmm_xmmm32 ) OR ( Code = VEX_Vfnmsub231sd_xmm_xmm_xmmm64 ) OR
+    ( Code = EVEX_Vfnmsub231ss_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vfnmsub231sd_xmm_k1z_xmm_xmmm64_er ) OR ( Code = EVEX_Vpconflictd_xmm_k1z_xmmm128b32 ) OR
+    ( Code = EVEX_Vpconflictq_xmm_k1z_xmmm128b64 ) OR ( Code = Sha1nexte_xmm_xmmm128 ) OR ( Code = Sha1msg1_xmm_xmmm128 ) OR
+    ( Code = Sha1msg2_xmm_xmmm128 ) OR ( Code = Sha256rnds2_xmm_xmmm128 ) OR ( Code = EVEX_Vrcp28ss_xmm_k1z_xmm_xmmm32_sae ) OR
+    ( Code = EVEX_Vrcp28sd_xmm_k1z_xmm_xmmm64_sae ) OR ( Code = Sha256msg1_xmm_xmmm128 ) OR ( Code = Sha256msg2_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vrsqrt28ss_xmm_k1z_xmm_xmmm32_sae ) OR ( Code = EVEX_Vrsqrt28sd_xmm_k1z_xmm_xmmm64_sae ) OR ( Code = Gf2p8mulb_xmm_xmmm128 ) OR
+    ( Code = VEX_Vgf2p8mulb_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vgf2p8mulb_xmm_k1z_xmm_xmmm128 ) OR ( Code = Aesimc_xmm_xmmm128 ) OR
+    ( Code = VEX_Vaesimc_xmm_xmmm128 ) OR ( Code = Aesenc_xmm_xmmm128 ) OR ( Code = VEX_Vaesenc_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vaesenc_xmm_xmm_xmmm128 ) OR ( Code = Aesenclast_xmm_xmmm128 ) OR ( Code = VEX_Vaesenclast_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vaesenclast_xmm_xmm_xmmm128 ) OR ( Code = Aesdec_xmm_xmmm128 ) OR ( Code = VEX_Vaesdec_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vaesdec_xmm_xmm_xmmm128 ) OR ( Code = Aesdeclast_xmm_xmmm128 ) OR ( Code = VEX_Vaesdeclast_xmm_xmm_xmmm128 ) OR
+    ( Code = EVEX_Vaesdeclast_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vpblendd_xmm_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Valignd_xmm_k1z_xmm_xmmm128b32_imm8 ) OR
+    ( Code = EVEX_Valignq_xmm_k1z_xmm_xmmm128b64_imm8 ) OR ( Code = VEX_Vpermilps_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vpermilps_xmm_k1z_xmmm128b32_imm8 ) OR
+    ( Code = VEX_Vpermilpd_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vpermilpd_xmm_k1z_xmmm128b64_imm8 ) OR ( Code = Roundps_xmm_xmmm128_imm8 ) OR
+    ( Code = VEX_Vroundps_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vrndscaleps_xmm_k1z_xmmm128b32_imm8 ) OR ( Code = Roundpd_xmm_xmmm128_imm8 ) OR
+    ( Code = VEX_Vroundpd_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vrndscalepd_xmm_k1z_xmmm128b64_imm8 ) OR ( Code = Roundss_xmm_xmmm32_imm8 ) OR
+    ( Code = VEX_Vroundss_xmm_xmm_xmmm32_imm8 ) OR ( Code = EVEX_Vrndscaless_xmm_k1z_xmm_xmmm32_imm8_sae ) OR ( Code = Roundsd_xmm_xmmm64_imm8 ) OR
+    ( Code = VEX_Vroundsd_xmm_xmm_xmmm64_imm8 ) OR ( Code = EVEX_Vrndscalesd_xmm_k1z_xmm_xmmm64_imm8_sae ) OR ( Code = Blendps_xmm_xmmm128_imm8 ) OR
+    ( Code = VEX_Vblendps_xmm_xmm_xmmm128_imm8 ) OR ( Code = Blendpd_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vblendpd_xmm_xmm_xmmm128_imm8 ) OR
+    ( Code = Pblendw_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vpblendw_xmm_xmm_xmmm128_imm8 ) OR ( Code = Palignr_xmm_xmmm128_imm8 ) OR
+    ( Code = VEX_Vpalignr_xmm_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vpalignr_xmm_k1z_xmm_xmmm128_imm8 ) OR ( Code = Pextrb_r32m8_xmm_imm8 ) OR
+    ( Code = Pextrb_r64m8_xmm_imm8 ) OR ( Code = VEX_Vpextrb_r32m8_xmm_imm8 ) OR ( Code = VEX_Vpextrb_r64m8_xmm_imm8 ) OR
+    ( Code = EVEX_Vpextrb_r32m8_xmm_imm8 ) OR ( Code = EVEX_Vpextrb_r64m8_xmm_imm8 ) OR ( Code = Pextrw_r32m16_xmm_imm8 ) OR
+    ( Code = Pextrw_r64m16_xmm_imm8 ) OR ( Code = VEX_Vpextrw_r32m16_xmm_imm8 ) OR ( Code = VEX_Vpextrw_r64m16_xmm_imm8 ) OR
+    ( Code = EVEX_Vpextrw_r32m16_xmm_imm8 ) OR ( Code = EVEX_Vpextrw_r64m16_xmm_imm8 ) OR ( Code = Pextrd_rm32_xmm_imm8 ) OR
+    ( Code = Pextrq_rm64_xmm_imm8 ) OR ( Code = VEX_Vpextrd_rm32_xmm_imm8 ) OR ( Code = VEX_Vpextrq_rm64_xmm_imm8 ) OR
+    ( Code = EVEX_Vpextrd_rm32_xmm_imm8 ) OR ( Code = EVEX_Vpextrq_rm64_xmm_imm8 ) OR ( Code = Extractps_rm32_xmm_imm8 ) OR
+    ( Code = Extractps_r64m32_xmm_imm8 ) OR ( Code = VEX_Vextractps_rm32_xmm_imm8 ) OR ( Code = VEX_Vextractps_r64m32_xmm_imm8 ) OR
+    ( Code = EVEX_Vextractps_rm32_xmm_imm8 ) OR ( Code = EVEX_Vextractps_r64m32_xmm_imm8 ) OR ( Code = VEX_Vinsertf128_ymm_ymm_xmmm128_imm8 ) OR
+    ( Code = EVEX_Vinsertf32x4_ymm_k1z_ymm_xmmm128_imm8 ) OR ( Code = EVEX_Vinsertf32x4_zmm_k1z_zmm_xmmm128_imm8 ) OR ( Code = EVEX_Vinsertf64x2_ymm_k1z_ymm_xmmm128_imm8 ) OR
+    ( Code = EVEX_Vinsertf64x2_zmm_k1z_zmm_xmmm128_imm8 ) OR ( Code = VEX_Vextractf128_xmmm128_ymm_imm8 ) OR ( Code = EVEX_Vextractf32x4_xmmm128_k1z_ymm_imm8 ) OR
+    ( Code = EVEX_Vextractf32x4_xmmm128_k1z_zmm_imm8 ) OR ( Code = EVEX_Vextractf64x2_xmmm128_k1z_ymm_imm8 ) OR ( Code = EVEX_Vextractf64x2_xmmm128_k1z_zmm_imm8 ) OR
+    ( Code = VEX_Vcvtps2ph_xmmm64_xmm_imm8 ) OR ( Code = VEX_Vcvtps2ph_xmmm128_ymm_imm8 ) OR ( Code = EVEX_Vcvtps2ph_xmmm64_k1z_xmm_imm8 ) OR
+    ( Code = EVEX_Vcvtps2ph_xmmm128_k1z_ymm_imm8 ) OR ( Code = EVEX_Vpcmpud_kr_k1_xmm_xmmm128b32_imm8 ) OR ( Code = EVEX_Vpcmpuq_kr_k1_xmm_xmmm128b64_imm8 ) OR
+    ( Code = EVEX_Vpcmpd_kr_k1_xmm_xmmm128b32_imm8 ) OR ( Code = EVEX_Vpcmpq_kr_k1_xmm_xmmm128b64_imm8 ) OR ( Code = Pinsrb_xmm_r32m8_imm8 ) OR
+    ( Code = Pinsrb_xmm_r64m8_imm8 ) OR ( Code = VEX_Vpinsrb_xmm_xmm_r32m8_imm8 ) OR ( Code = VEX_Vpinsrb_xmm_xmm_r64m8_imm8 ) OR
+    ( Code = EVEX_Vpinsrb_xmm_xmm_r32m8_imm8 ) OR ( Code = EVEX_Vpinsrb_xmm_xmm_r64m8_imm8 ) OR ( Code = Insertps_xmm_xmmm32_imm8 ) OR
+    ( Code = VEX_Vinsertps_xmm_xmm_xmmm32_imm8 ) OR ( Code = EVEX_Vinsertps_xmm_xmm_xmmm32_imm8 ) OR ( Code = Pinsrd_xmm_rm32_imm8 ) OR
+    ( Code = Pinsrq_xmm_rm64_imm8 ) OR ( Code = VEX_Vpinsrd_xmm_xmm_rm32_imm8 ) OR ( Code = VEX_Vpinsrq_xmm_xmm_rm64_imm8 ) OR
+    ( Code = EVEX_Vpinsrd_xmm_xmm_rm32_imm8 ) OR ( Code = EVEX_Vpinsrq_xmm_xmm_rm64_imm8 ) OR ( Code = EVEX_Vpternlogd_xmm_k1z_xmm_xmmm128b32_imm8 ) OR
+    ( Code = EVEX_Vpternlogq_xmm_k1z_xmm_xmmm128b64_imm8 ) OR ( Code = EVEX_Vgetmantps_xmm_k1z_xmmm128b32_imm8 ) OR ( Code = EVEX_Vgetmantpd_xmm_k1z_xmmm128b64_imm8 ) OR
+    ( Code = EVEX_Vgetmantss_xmm_k1z_xmm_xmmm32_imm8_sae ) OR ( Code = EVEX_Vgetmantsd_xmm_k1z_xmm_xmmm64_imm8_sae ) OR ( Code = VEX_Vinserti128_ymm_ymm_xmmm128_imm8 ) OR
+    ( Code = EVEX_Vinserti32x4_ymm_k1z_ymm_xmmm128_imm8 ) OR ( Code = EVEX_Vinserti32x4_zmm_k1z_zmm_xmmm128_imm8 ) OR ( Code = EVEX_Vinserti64x2_ymm_k1z_ymm_xmmm128_imm8 ) OR
+    ( Code = EVEX_Vinserti64x2_zmm_k1z_zmm_xmmm128_imm8 ) OR ( Code = VEX_Vextracti128_xmmm128_ymm_imm8 ) OR ( Code = EVEX_Vextracti32x4_xmmm128_k1z_ymm_imm8 ) OR
+    ( Code = EVEX_Vextracti32x4_xmmm128_k1z_zmm_imm8 ) OR ( Code = EVEX_Vextracti64x2_xmmm128_k1z_ymm_imm8 ) OR ( Code = EVEX_Vextracti64x2_xmmm128_k1z_zmm_imm8 ) OR
+    ( Code = EVEX_Vpcmpub_kr_k1_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vpcmpuw_kr_k1_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vpcmpb_kr_k1_xmm_xmmm128_imm8 ) OR
+    ( Code = EVEX_Vpcmpw_kr_k1_xmm_xmmm128_imm8 ) OR ( Code = Dpps_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vdpps_xmm_xmm_xmmm128_imm8 ) OR
+    ( Code = Dppd_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vdppd_xmm_xmm_xmmm128_imm8 ) OR ( Code = Mpsadbw_xmm_xmmm128_imm8 ) OR
+    ( Code = VEX_Vmpsadbw_xmm_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vdbpsadbw_xmm_k1z_xmm_xmmm128_imm8 ) OR ( Code = Pclmulqdq_xmm_xmmm128_imm8 ) OR
+    ( Code = VEX_Vpclmulqdq_xmm_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vpclmulqdq_xmm_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vpermil2ps_xmm_xmm_xmmm128_xmm_imm4 ) OR
+    ( Code = VEX_Vpermil2ps_xmm_xmm_xmm_xmmm128_imm4 ) OR ( Code = VEX_Vpermil2pd_xmm_xmm_xmmm128_xmm_imm4 ) OR ( Code = VEX_Vpermil2pd_xmm_xmm_xmm_xmmm128_imm4 ) OR
+    ( Code = VEX_Vblendvps_xmm_xmm_xmmm128_xmm ) OR ( Code = VEX_Vblendvpd_xmm_xmm_xmmm128_xmm ) OR ( Code = VEX_Vpblendvb_xmm_xmm_xmmm128_xmm ) OR
+    ( Code = EVEX_Vrangeps_xmm_k1z_xmm_xmmm128b32_imm8 ) OR ( Code = EVEX_Vrangepd_xmm_k1z_xmm_xmmm128b64_imm8 ) OR ( Code = EVEX_Vrangess_xmm_k1z_xmm_xmmm32_imm8_sae ) OR
+    ( Code = EVEX_Vrangesd_xmm_k1z_xmm_xmmm64_imm8_sae ) OR ( Code = EVEX_Vfixupimmps_xmm_k1z_xmm_xmmm128b32_imm8 ) OR ( Code = EVEX_Vfixupimmpd_xmm_k1z_xmm_xmmm128b64_imm8 ) OR
+    ( Code = EVEX_Vfixupimmss_xmm_k1z_xmm_xmmm32_imm8_sae ) OR ( Code = EVEX_Vfixupimmsd_xmm_k1z_xmm_xmmm64_imm8_sae ) OR ( Code = EVEX_Vreduceps_xmm_k1z_xmmm128b32_imm8 ) OR
+    ( Code = EVEX_Vreducepd_xmm_k1z_xmmm128b64_imm8 ) OR ( Code = EVEX_Vreducess_xmm_k1z_xmm_xmmm32_imm8_sae ) OR ( Code = EVEX_Vreducesd_xmm_k1z_xmm_xmmm64_imm8_sae ) OR
+    ( Code = VEX_Vfmaddsubps_xmm_xmm_xmmm128_xmm ) OR ( Code = VEX_Vfmaddsubps_xmm_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfmaddsubpd_xmm_xmm_xmmm128_xmm ) OR
+    ( Code = VEX_Vfmaddsubpd_xmm_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfmsubaddps_xmm_xmm_xmmm128_xmm ) OR ( Code = VEX_Vfmsubaddps_xmm_xmm_xmm_xmmm128 ) OR
+    ( Code = VEX_Vfmsubaddpd_xmm_xmm_xmmm128_xmm ) OR ( Code = VEX_Vfmsubaddpd_xmm_xmm_xmm_xmmm128 ) OR ( Code = Pcmpestrm_xmm_xmmm128_imm8 ) OR
+    ( Code = Pcmpestrm64_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vpcmpestrm_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vpcmpestrm64_xmm_xmmm128_imm8 ) OR
+    ( Code = Pcmpestri_xmm_xmmm128_imm8 ) OR ( Code = Pcmpestri64_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vpcmpestri_xmm_xmmm128_imm8 ) OR
+    ( Code = VEX_Vpcmpestri64_xmm_xmmm128_imm8 ) OR ( Code = Pcmpistrm_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vpcmpistrm_xmm_xmmm128_imm8 ) OR
+    ( Code = Pcmpistri_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vpcmpistri_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vfpclassps_kr_k1_xmmm128b32_imm8 ) OR
+    ( Code = EVEX_Vfpclasspd_kr_k1_xmmm128b64_imm8 ) OR ( Code = EVEX_Vfpclassss_kr_k1_xmmm32_imm8 ) OR ( Code = EVEX_Vfpclasssd_kr_k1_xmmm64_imm8 ) OR
+    ( Code = VEX_Vfmaddps_xmm_xmm_xmmm128_xmm ) OR ( Code = VEX_Vfmaddps_xmm_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfmaddpd_xmm_xmm_xmmm128_xmm ) OR
+    ( Code = VEX_Vfmaddpd_xmm_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfmaddss_xmm_xmm_xmmm32_xmm ) OR ( Code = VEX_Vfmaddss_xmm_xmm_xmm_xmmm32 ) OR
+    ( Code = VEX_Vfmaddsd_xmm_xmm_xmmm64_xmm ) OR ( Code = VEX_Vfmaddsd_xmm_xmm_xmm_xmmm64 ) OR ( Code = VEX_Vfmsubps_xmm_xmm_xmmm128_xmm ) OR
+    ( Code = VEX_Vfmsubps_xmm_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfmsubpd_xmm_xmm_xmmm128_xmm ) OR ( Code = VEX_Vfmsubpd_xmm_xmm_xmm_xmmm128 ) OR
+    ( Code = VEX_Vfmsubss_xmm_xmm_xmmm32_xmm ) OR ( Code = VEX_Vfmsubss_xmm_xmm_xmm_xmmm32 ) OR ( Code = VEX_Vfmsubsd_xmm_xmm_xmmm64_xmm ) OR
+    ( Code = VEX_Vfmsubsd_xmm_xmm_xmm_xmmm64 ) OR ( Code = EVEX_Vpshldw_xmm_k1z_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vpshldd_xmm_k1z_xmm_xmmm128b32_imm8 ) OR
+    ( Code = EVEX_Vpshldq_xmm_k1z_xmm_xmmm128b64_imm8 ) OR ( Code = EVEX_Vpshrdw_xmm_k1z_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vpshrdd_xmm_k1z_xmm_xmmm128b32_imm8 ) OR
+    ( Code = EVEX_Vpshrdq_xmm_k1z_xmm_xmmm128b64_imm8 ) OR ( Code = VEX_Vfnmaddps_xmm_xmm_xmmm128_xmm ) OR ( Code = VEX_Vfnmaddps_xmm_xmm_xmm_xmmm128 ) OR
+    ( Code = VEX_Vfnmaddpd_xmm_xmm_xmmm128_xmm ) OR ( Code = VEX_Vfnmaddpd_xmm_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfnmaddss_xmm_xmm_xmmm32_xmm ) OR
+    ( Code = VEX_Vfnmaddss_xmm_xmm_xmm_xmmm32 ) OR ( Code = VEX_Vfnmaddsd_xmm_xmm_xmmm64_xmm ) OR ( Code = VEX_Vfnmaddsd_xmm_xmm_xmm_xmmm64 ) OR
+    ( Code = VEX_Vfnmsubps_xmm_xmm_xmmm128_xmm ) OR ( Code = VEX_Vfnmsubps_xmm_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfnmsubpd_xmm_xmm_xmmm128_xmm ) OR
+    ( Code = VEX_Vfnmsubpd_xmm_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vfnmsubss_xmm_xmm_xmmm32_xmm ) OR ( Code = VEX_Vfnmsubss_xmm_xmm_xmm_xmmm32 ) OR
+    ( Code = VEX_Vfnmsubsd_xmm_xmm_xmmm64_xmm ) OR ( Code = VEX_Vfnmsubsd_xmm_xmm_xmm_xmmm64 ) OR ( Code = Sha1rnds4_xmm_xmmm128_imm8 ) OR
+    ( Code = Gf2p8affineqb_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vgf2p8affineqb_xmm_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vgf2p8affineqb_xmm_k1z_xmm_xmmm128b64_imm8 ) OR
+    ( Code = Gf2p8affineinvqb_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vgf2p8affineinvqb_xmm_xmm_xmmm128_imm8 ) OR ( Code = EVEX_Vgf2p8affineinvqb_xmm_k1z_xmm_xmmm128b64_imm8 ) OR
+    ( Code = Aeskeygenassist_xmm_xmmm128_imm8 ) OR ( Code = VEX_Vaeskeygenassist_xmm_xmmm128_imm8 ) OR ( Code = XOP_Vpmacssww_xmm_xmm_xmmm128_xmm ) OR
+    ( Code = XOP_Vpmacsswd_xmm_xmm_xmmm128_xmm ) OR ( Code = XOP_Vpmacssdql_xmm_xmm_xmmm128_xmm ) OR ( Code = XOP_Vpmacssdd_xmm_xmm_xmmm128_xmm ) OR
+    ( Code = XOP_Vpmacssdqh_xmm_xmm_xmmm128_xmm ) OR ( Code = XOP_Vpmacsww_xmm_xmm_xmmm128_xmm ) OR ( Code = XOP_Vpmacswd_xmm_xmm_xmmm128_xmm ) OR
+    ( Code = XOP_Vpmacsdql_xmm_xmm_xmmm128_xmm ) OR ( Code = XOP_Vpmacsdd_xmm_xmm_xmmm128_xmm ) OR ( Code = XOP_Vpmacsdqh_xmm_xmm_xmmm128_xmm ) OR
+    ( Code = XOP_Vpcmov_xmm_xmm_xmmm128_xmm ) OR ( Code = XOP_Vpcmov_xmm_xmm_xmm_xmmm128 ) OR ( Code = XOP_Vpperm_xmm_xmm_xmmm128_xmm ) OR
+    ( Code = XOP_Vpperm_xmm_xmm_xmm_xmmm128 ) OR ( Code = XOP_Vpmadcsswd_xmm_xmm_xmmm128_xmm ) OR ( Code = XOP_Vpmadcswd_xmm_xmm_xmmm128_xmm ) OR
+    ( Code = XOP_Vprotb_xmm_xmmm128_imm8 ) OR ( Code = XOP_Vprotw_xmm_xmmm128_imm8 ) OR ( Code = XOP_Vprotd_xmm_xmmm128_imm8 ) OR
+    ( Code = XOP_Vprotq_xmm_xmmm128_imm8 ) OR ( Code = XOP_Vpcomb_xmm_xmm_xmmm128_imm8 ) OR ( Code = XOP_Vpcomw_xmm_xmm_xmmm128_imm8 ) OR
+    ( Code = XOP_Vpcomd_xmm_xmm_xmmm128_imm8 ) OR ( Code = XOP_Vpcomq_xmm_xmm_xmmm128_imm8 ) OR ( Code = XOP_Vpcomub_xmm_xmm_xmmm128_imm8 ) OR
+    ( Code = XOP_Vpcomuw_xmm_xmm_xmmm128_imm8 ) OR ( Code = XOP_Vpcomud_xmm_xmm_xmmm128_imm8 ) OR ( Code = XOP_Vpcomuq_xmm_xmm_xmmm128_imm8 ) OR
+    ( Code = XOP_Vfrczps_xmm_xmmm128 ) OR ( Code = XOP_Vfrczpd_xmm_xmmm128 ) OR ( Code = XOP_Vfrczss_xmm_xmmm32 ) OR
+    ( Code = XOP_Vfrczsd_xmm_xmmm64 ) OR ( Code = XOP_Vprotb_xmm_xmmm128_xmm ) OR ( Code = XOP_Vprotb_xmm_xmm_xmmm128 ) OR
+    ( Code = XOP_Vprotw_xmm_xmmm128_xmm ) OR ( Code = XOP_Vprotw_xmm_xmm_xmmm128 ) OR ( Code = XOP_Vprotd_xmm_xmmm128_xmm ) OR
+    ( Code = XOP_Vprotd_xmm_xmm_xmmm128 ) OR ( Code = XOP_Vprotq_xmm_xmmm128_xmm ) OR ( Code = XOP_Vprotq_xmm_xmm_xmmm128 ) OR
+    ( Code = XOP_Vpshlb_xmm_xmmm128_xmm ) OR ( Code = XOP_Vpshlb_xmm_xmm_xmmm128 ) OR ( Code = XOP_Vpshlw_xmm_xmmm128_xmm ) OR
+    ( Code = XOP_Vpshlw_xmm_xmm_xmmm128 ) OR ( Code = XOP_Vpshld_xmm_xmmm128_xmm ) OR ( Code = XOP_Vpshld_xmm_xmm_xmmm128 ) OR
+    ( Code = XOP_Vpshlq_xmm_xmmm128_xmm ) OR ( Code = XOP_Vpshlq_xmm_xmm_xmmm128 ) OR ( Code = XOP_Vpshab_xmm_xmmm128_xmm ) OR
+    ( Code = XOP_Vpshab_xmm_xmm_xmmm128 ) OR ( Code = XOP_Vpshaw_xmm_xmmm128_xmm ) OR ( Code = XOP_Vpshaw_xmm_xmm_xmmm128 ) OR
+    ( Code = XOP_Vpshad_xmm_xmmm128_xmm ) OR ( Code = XOP_Vpshad_xmm_xmm_xmmm128 ) OR ( Code = XOP_Vpshaq_xmm_xmmm128_xmm ) OR
+    ( Code = XOP_Vpshaq_xmm_xmm_xmmm128 ) OR ( Code = XOP_Vphaddbw_xmm_xmmm128 ) OR ( Code = XOP_Vphaddbd_xmm_xmmm128 ) OR
+    ( Code = XOP_Vphaddbq_xmm_xmmm128 ) OR ( Code = XOP_Vphaddwd_xmm_xmmm128 ) OR ( Code = XOP_Vphaddwq_xmm_xmmm128 ) OR
+    ( Code = XOP_Vphadddq_xmm_xmmm128 ) OR ( Code = XOP_Vphaddubw_xmm_xmmm128 ) OR ( Code = XOP_Vphaddubd_xmm_xmmm128 ) OR
+    ( Code = XOP_Vphaddubq_xmm_xmmm128 ) OR ( Code = XOP_Vphadduwd_xmm_xmmm128 ) OR ( Code = XOP_Vphadduwq_xmm_xmmm128 ) OR
+    ( Code = XOP_Vphaddudq_xmm_xmmm128 ) OR ( Code = XOP_Vphsubbw_xmm_xmmm128 ) OR ( Code = XOP_Vphsubwd_xmm_xmmm128 ) OR
+    ( Code = XOP_Vphsubdq_xmm_xmmm128 ) OR ( Code = Loadiwkey_xmm_xmm ) OR ( Code = Aesenc128kl_xmm_m384 ) OR
+    ( Code = Aesdec128kl_xmm_m384 ) OR ( Code = Aesenc256kl_xmm_m512 ) OR ( Code = Aesdec256kl_xmm_m512 ) OR
+    ( Code = VEX_Vbroadcastss_xmm_xmm ) OR ( Code = VEX_Vbroadcastss_ymm_xmm ) OR ( Code = VEX_Vbroadcastsd_ymm_xmm ) OR
+    ( Code = VEX_Vpdpbusd_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vpdpbusds_xmm_xmm_xmmm128 ) OR ( Code = VEX_Vpdpwssd_xmm_xmm_xmmm128 ) OR
+    ( Code = VEX_Vpdpwssds_xmm_xmm_xmmm128 ) OR ( Code = EVEX_Vaddph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vaddsh_xmm_k1z_xmm_xmmm16_er ) OR
+    ( Code = EVEX_Vcmpph_kr_k1_xmm_xmmm128b16_imm8 ) OR ( Code = EVEX_Vcmpsh_kr_k1_xmm_xmmm16_imm8_sae ) OR ( Code = EVEX_Vcomish_xmm_xmmm16_sae ) OR
+    ( Code = EVEX_Vcvtdq2ph_xmm_k1z_xmmm128b32 ) OR ( Code = EVEX_Vcvtdq2ph_xmm_k1z_ymmm256b32 ) OR ( Code = EVEX_Vcvtpd2ph_xmm_k1z_xmmm128b64 ) OR
+    ( Code = EVEX_Vcvtpd2ph_xmm_k1z_ymmm256b64 ) OR ( Code = EVEX_Vcvtpd2ph_xmm_k1z_zmmm512b64_er ) OR ( Code = EVEX_Vcvtph2dq_xmm_k1z_xmmm64b16 ) OR
+    ( Code = EVEX_Vcvtph2dq_ymm_k1z_xmmm128b16 ) OR ( Code = EVEX_Vcvtph2pd_xmm_k1z_xmmm32b16 ) OR ( Code = EVEX_Vcvtph2pd_ymm_k1z_xmmm64b16 ) OR
+    ( Code = EVEX_Vcvtph2pd_zmm_k1z_xmmm128b16_sae ) OR ( Code = EVEX_Vcvtph2psx_xmm_k1z_xmmm64b16 ) OR ( Code = EVEX_Vcvtph2psx_ymm_k1z_xmmm128b16 ) OR
+    ( Code = EVEX_Vcvtph2qq_xmm_k1z_xmmm32b16 ) OR ( Code = EVEX_Vcvtph2qq_ymm_k1z_xmmm64b16 ) OR ( Code = EVEX_Vcvtph2qq_zmm_k1z_xmmm128b16_er ) OR
+    ( Code = EVEX_Vcvtph2udq_xmm_k1z_xmmm64b16 ) OR ( Code = EVEX_Vcvtph2udq_ymm_k1z_xmmm128b16 ) OR ( Code = EVEX_Vcvtph2uqq_xmm_k1z_xmmm32b16 ) OR
+    ( Code = EVEX_Vcvtph2uqq_ymm_k1z_xmmm64b16 ) OR ( Code = EVEX_Vcvtph2uqq_zmm_k1z_xmmm128b16_er ) OR ( Code = EVEX_Vcvtph2uw_xmm_k1z_xmmm128b16 ) OR
+    ( Code = EVEX_Vcvtph2w_xmm_k1z_xmmm128b16 ) OR ( Code = EVEX_Vcvtps2phx_xmm_k1z_xmmm128b32 ) OR ( Code = EVEX_Vcvtps2phx_xmm_k1z_ymmm256b32 ) OR
+    ( Code = EVEX_Vcvtqq2ph_xmm_k1z_xmmm128b64 ) OR ( Code = EVEX_Vcvtqq2ph_xmm_k1z_ymmm256b64 ) OR ( Code = EVEX_Vcvtqq2ph_xmm_k1z_zmmm512b64_er ) OR
+    ( Code = EVEX_Vcvtsd2sh_xmm_k1z_xmm_xmmm64_er ) OR ( Code = EVEX_Vcvtsh2sd_xmm_k1z_xmm_xmmm16_sae ) OR ( Code = EVEX_Vcvtsh2si_r32_xmmm16_er ) OR
+    ( Code = EVEX_Vcvtsh2si_r64_xmmm16_er ) OR ( Code = EVEX_Vcvtsh2ss_xmm_k1z_xmm_xmmm16_sae ) OR ( Code = EVEX_Vcvtsh2usi_r32_xmmm16_er ) OR
+    ( Code = EVEX_Vcvtsh2usi_r64_xmmm16_er ) OR ( Code = EVEX_Vcvtsi2sh_xmm_xmm_rm32_er ) OR ( Code = EVEX_Vcvtsi2sh_xmm_xmm_rm64_er ) OR
+    ( Code = EVEX_Vcvtss2sh_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vcvttph2dq_xmm_k1z_xmmm64b16 ) OR ( Code = EVEX_Vcvttph2dq_ymm_k1z_xmmm128b16 ) OR
+    ( Code = EVEX_Vcvttph2qq_xmm_k1z_xmmm32b16 ) OR ( Code = EVEX_Vcvttph2qq_ymm_k1z_xmmm64b16 ) OR ( Code = EVEX_Vcvttph2qq_zmm_k1z_xmmm128b16_sae ) OR
+    ( Code = EVEX_Vcvttph2udq_xmm_k1z_xmmm64b16 ) OR ( Code = EVEX_Vcvttph2udq_ymm_k1z_xmmm128b16 ) OR ( Code = EVEX_Vcvttph2uqq_xmm_k1z_xmmm32b16 ) OR
+    ( Code = EVEX_Vcvttph2uqq_ymm_k1z_xmmm64b16 ) OR ( Code = EVEX_Vcvttph2uqq_zmm_k1z_xmmm128b16_sae ) OR ( Code = EVEX_Vcvttph2uw_xmm_k1z_xmmm128b16 ) OR
+    ( Code = EVEX_Vcvttph2w_xmm_k1z_xmmm128b16 ) OR ( Code = EVEX_Vcvttsh2si_r32_xmmm16_sae ) OR ( Code = EVEX_Vcvttsh2si_r64_xmmm16_sae ) OR
+    ( Code = EVEX_Vcvttsh2usi_r32_xmmm16_sae ) OR ( Code = EVEX_Vcvttsh2usi_r64_xmmm16_sae ) OR ( Code = EVEX_Vcvtudq2ph_xmm_k1z_xmmm128b32 ) OR
+    ( Code = EVEX_Vcvtudq2ph_xmm_k1z_ymmm256b32 ) OR ( Code = EVEX_Vcvtuqq2ph_xmm_k1z_xmmm128b64 ) OR ( Code = EVEX_Vcvtuqq2ph_xmm_k1z_ymmm256b64 ) OR
+    ( Code = EVEX_Vcvtuqq2ph_xmm_k1z_zmmm512b64_er ) OR ( Code = EVEX_Vcvtusi2sh_xmm_xmm_rm32_er ) OR ( Code = EVEX_Vcvtusi2sh_xmm_xmm_rm64_er ) OR
+    ( Code = EVEX_Vcvtuw2ph_xmm_k1z_xmmm128b16 ) OR ( Code = EVEX_Vcvtw2ph_xmm_k1z_xmmm128b16 ) OR ( Code = EVEX_Vdivph_xmm_k1z_xmm_xmmm128b16 ) OR
+    ( Code = EVEX_Vdivsh_xmm_k1z_xmm_xmmm16_er ) OR ( Code = EVEX_Vfcmaddcph_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfmaddcph_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vfcmaddcsh_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vfmaddcsh_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vfcmulcph_xmm_k1z_xmm_xmmm128b32 ) OR
+    ( Code = EVEX_Vfmulcph_xmm_k1z_xmm_xmmm128b32 ) OR ( Code = EVEX_Vfcmulcsh_xmm_k1z_xmm_xmmm32_er ) OR ( Code = EVEX_Vfmulcsh_xmm_k1z_xmm_xmmm32_er ) OR
+    ( Code = EVEX_Vfmaddsub132ph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vfmaddsub213ph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vfmaddsub231ph_xmm_k1z_xmm_xmmm128b16 ) OR
+    ( Code = EVEX_Vfmsubadd132ph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vfmsubadd213ph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vfmsubadd231ph_xmm_k1z_xmm_xmmm128b16 ) OR
+    ( Code = EVEX_Vfmadd132ph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vfmadd213ph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vfmadd231ph_xmm_k1z_xmm_xmmm128b16 ) OR
+    ( Code = EVEX_Vfnmadd132ph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vfnmadd213ph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vfnmadd231ph_xmm_k1z_xmm_xmmm128b16 ) OR
+    ( Code = EVEX_Vfmadd132sh_xmm_k1z_xmm_xmmm16_er ) OR ( Code = EVEX_Vfmadd213sh_xmm_k1z_xmm_xmmm16_er ) OR ( Code = EVEX_Vfmadd231sh_xmm_k1z_xmm_xmmm16_er ) OR
+    ( Code = EVEX_Vfnmadd132sh_xmm_k1z_xmm_xmmm16_er ) OR ( Code = EVEX_Vfnmadd213sh_xmm_k1z_xmm_xmmm16_er ) OR ( Code = EVEX_Vfnmadd231sh_xmm_k1z_xmm_xmmm16_er ) OR
+    ( Code = EVEX_Vfmsub132ph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vfmsub213ph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vfmsub231ph_xmm_k1z_xmm_xmmm128b16 ) OR
+    ( Code = EVEX_Vfnmsub132ph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vfnmsub213ph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vfnmsub231ph_xmm_k1z_xmm_xmmm128b16 ) OR
+    ( Code = EVEX_Vfmsub132sh_xmm_k1z_xmm_xmmm16_er ) OR ( Code = EVEX_Vfmsub213sh_xmm_k1z_xmm_xmmm16_er ) OR ( Code = EVEX_Vfmsub231sh_xmm_k1z_xmm_xmmm16_er ) OR
+    ( Code = EVEX_Vfnmsub132sh_xmm_k1z_xmm_xmmm16_er ) OR ( Code = EVEX_Vfnmsub213sh_xmm_k1z_xmm_xmmm16_er ) OR ( Code = EVEX_Vfnmsub231sh_xmm_k1z_xmm_xmmm16_er ) OR
+    ( Code = EVEX_Vfpclassph_kr_k1_xmmm128b16_imm8 ) OR ( Code = EVEX_Vfpclasssh_kr_k1_xmmm16_imm8 ) OR ( Code = EVEX_Vgetexpph_xmm_k1z_xmmm128b16 ) OR
+    ( Code = EVEX_Vgetexpsh_xmm_k1z_xmm_xmmm16_sae ) OR ( Code = EVEX_Vgetmantph_xmm_k1z_xmmm128b16_imm8 ) OR ( Code = EVEX_Vgetmantsh_xmm_k1z_xmm_xmmm16_imm8_sae ) OR
+    ( Code = EVEX_Vmaxph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vmaxsh_xmm_k1z_xmm_xmmm16_sae ) OR ( Code = EVEX_Vminph_xmm_k1z_xmm_xmmm128b16 ) OR
+    ( Code = EVEX_Vminsh_xmm_k1z_xmm_xmmm16_sae ) OR ( Code = EVEX_Vmovsh_xmm_k1z_m16 ) OR ( Code = EVEX_Vmovsh_m16_k1_xmm ) OR
+    ( Code = EVEX_Vmovsh_xmm_k1z_xmm_xmm ) OR ( Code = EVEX_Vmovsh_xmm_k1z_xmm_xmm_MAP5_11 ) OR ( Code = EVEX_Vmovw_xmm_r32m16 ) OR
+    ( Code = EVEX_Vmovw_xmm_r64m16 ) OR ( Code = EVEX_Vmovw_r32m16_xmm ) OR ( Code = EVEX_Vmovw_r64m16_xmm ) OR
+    ( Code = EVEX_Vmulph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vmulsh_xmm_k1z_xmm_xmmm16_er ) OR ( Code = EVEX_Vrcpph_xmm_k1z_xmmm128b16 ) OR
+    ( Code = EVEX_Vrcpsh_xmm_k1z_xmm_xmmm16 ) OR ( Code = EVEX_Vreduceph_xmm_k1z_xmmm128b16_imm8 ) OR ( Code = EVEX_Vreducesh_xmm_k1z_xmm_xmmm16_imm8_sae ) OR
+    ( Code = EVEX_Vrndscaleph_xmm_k1z_xmmm128b16_imm8 ) OR ( Code = EVEX_Vrndscalesh_xmm_k1z_xmm_xmmm16_imm8_sae ) OR ( Code = EVEX_Vrsqrtph_xmm_k1z_xmmm128b16 ) OR
+    ( Code = EVEX_Vrsqrtsh_xmm_k1z_xmm_xmmm16 ) OR ( Code = EVEX_Vscalefph_xmm_k1z_xmm_xmmm128b16 ) OR ( Code = EVEX_Vscalefsh_xmm_k1z_xmm_xmmm16_er ) OR
+    ( Code = EVEX_Vsqrtph_xmm_k1z_xmmm128b16 ) OR ( Code = EVEX_Vsqrtsh_xmm_k1z_xmm_xmmm16_er ) OR ( Code = EVEX_Vsubph_xmm_k1z_xmm_xmmm128b16 ) OR
+    ( Code = EVEX_Vsubsh_xmm_k1z_xmm_xmmm16_er ) then
+      result := True
+  else
+    result := False;
+end;
+
+function TInstruction.IsFloat64 : Boolean;
+begin
+  if( Code = Cvtsi2ss_xmm_rm64 ) OR
+    ( Code = VEX_Vcvtsi2ss_xmm_xmm_rm64 ) OR
+    ( Code = EVEX_Vcvtsi2ss_xmm_xmm_rm64_er ) OR
+    ( Code = Cvtsi2sd_xmm_rm64 ) OR
+    ( Code = VEX_Vcvtsi2sd_xmm_xmm_rm64 ) OR
+    ( Code = EVEX_Vcvtsi2sd_xmm_xmm_rm64_er ) OR
+    ( Code = Cvttss2si_r64_xmmm32 ) OR
+    ( Code = VEX_Vcvttss2si_r64_xmmm32 ) OR
+    ( Code = EVEX_Vcvttss2si_r64_xmmm32_sae ) OR
+    ( Code = Cvttsd2si_r64_xmmm64 ) OR
+    ( Code = VEX_Vcvttsd2si_r64_xmmm64 ) OR
+    ( Code = EVEX_Vcvttsd2si_r64_xmmm64_sae ) OR
+    ( Code = Cvtss2si_r64_xmmm32 ) OR
+    ( Code = VEX_Vcvtss2si_r64_xmmm32 ) OR
+    ( Code = EVEX_Vcvtss2si_r64_xmmm32_er ) OR
+    ( Code = Cvtsd2si_r64_xmmm64 ) OR
+    ( Code = VEX_Vcvtsd2si_r64_xmmm64 ) OR
+    ( Code = EVEX_Vcvtsd2si_r64_xmmm64_er ) OR
+    ( Code = Movmskps_r64_xmm ) OR
+    ( Code = VEX_Vmovmskps_r64_xmm ) OR
+    ( Code = Movmskpd_r64_xmm ) OR
+    ( Code = VEX_Vmovmskpd_r64_xmm ) OR
+    ( Code = Movq_xmm_rm64 ) OR
+    ( Code = VEX_Vmovq_xmm_rm64 ) OR
+    ( Code = EVEX_Vmovq_xmm_rm64 ) OR
+    ( Code = EVEX_Vcvttss2usi_r64_xmmm32_sae ) OR
+    ( Code = EVEX_Vcvttsd2usi_r64_xmmm64_sae ) OR
+    ( Code = EVEX_Vcvtss2usi_r64_xmmm32_er ) OR
+    ( Code = EVEX_Vcvtsd2usi_r64_xmmm64_er ) OR
+    ( Code = EVEX_Vcvtusi2ss_xmm_xmm_rm64_er ) OR
+    ( Code = EVEX_Vcvtusi2sd_xmm_xmm_rm64_er ) OR
+    ( Code = Movq_rm64_xmm ) OR
+    ( Code = VEX_Vmovq_rm64_xmm ) OR
+    ( Code = EVEX_Vmovq_rm64_xmm ) OR
+    ( Code = Pinsrw_xmm_r64m16_imm8 ) OR
+    ( Code = VEX_Vpinsrw_xmm_xmm_r64m16_imm8 ) OR
+    ( Code = EVEX_Vpinsrw_xmm_xmm_r64m16_imm8 ) OR
+    ( Code = Pextrw_r64_xmm_imm8 ) OR
+    ( Code = VEX_Vpextrw_r64_xmm_imm8 ) OR
+    ( Code = EVEX_Vpextrw_r64_xmm_imm8 ) OR
+    ( Code = Pmovmskb_r64_xmm ) OR
+    ( Code = VEX_Vpmovmskb_r64_xmm ) OR
+    ( Code = EVEX_Vpbroadcastq_xmm_k1z_r64 ) OR
+    ( Code = Pextrb_r64m8_xmm_imm8 ) OR
+    ( Code = VEX_Vpextrb_r64m8_xmm_imm8 ) OR
+    ( Code = EVEX_Vpextrb_r64m8_xmm_imm8 ) OR
+    ( Code = Pextrw_r64m16_xmm_imm8 ) OR
+    ( Code = VEX_Vpextrw_r64m16_xmm_imm8 ) OR
+    ( Code = EVEX_Vpextrw_r64m16_xmm_imm8 ) OR
+    ( Code = Pextrq_rm64_xmm_imm8 ) OR
+    ( Code = VEX_Vpextrq_rm64_xmm_imm8 ) OR
+    ( Code = EVEX_Vpextrq_rm64_xmm_imm8 ) OR
+    ( Code = Extractps_r64m32_xmm_imm8 ) OR
+    ( Code = VEX_Vextractps_r64m32_xmm_imm8 ) OR
+    ( Code = EVEX_Vextractps_r64m32_xmm_imm8 ) OR
+    ( Code = Pinsrb_xmm_r64m8_imm8 ) OR
+    ( Code = VEX_Vpinsrb_xmm_xmm_r64m8_imm8 ) OR
+    ( Code = EVEX_Vpinsrb_xmm_xmm_r64m8_imm8 ) OR
+    ( Code = Pinsrq_xmm_rm64_imm8 ) OR
+    ( Code = VEX_Vpinsrq_xmm_xmm_rm64_imm8 ) OR
+    ( Code = EVEX_Vpinsrq_xmm_xmm_rm64_imm8 ) OR
+    ( Code = Pcmpestrm64_xmm_xmmm128_imm8 ) OR
+    ( Code = VEX_Vpcmpestrm64_xmm_xmmm128_imm8 ) OR
+    ( Code = Pcmpestri64_xmm_xmmm128_imm8 ) OR
+    ( Code = VEX_Vpcmpestri64_xmm_xmmm128_imm8 ) OR
+    ( Code = EVEX_Vcvtsh2si_r64_xmmm16_er ) OR
+    ( Code = EVEX_Vcvtsh2usi_r64_xmmm16_er ) OR
+    ( Code = EVEX_Vcvtsi2sh_xmm_xmm_rm64_er ) OR
+    ( Code = EVEX_Vcvttsh2si_r64_xmmm16_sae ) OR
+    ( Code = EVEX_Vcvttsh2usi_r64_xmmm16_sae ) OR
+    ( Code = EVEX_Vcvtusi2sh_xmm_xmm_rm64_er ) OR
+    ( Code = EVEX_Vmovw_xmm_r64m16 ) then
+    result := True
+  else
+    result := False;
 end;
 
 function TInstruction.FPU_StackIncrementInfo : TFpuStackIncrementInfo;

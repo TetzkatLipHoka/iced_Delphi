@@ -11,9 +11,10 @@ unit uIced;
 //    function    FindPreviousInstruction( Code : PByte; Size : Cardinal; Address : UInt64; var Offset : UInt64; InstructionCount : Word = 1; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : pIcedDetail = nil ) : Cardinal; overload;
 //    function    FindPreviousInstruction( Code : TMemoryStream; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; DesiredInstructionOffset : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : pIcedDetail = nil ) : Cardinal; overload;
 //    function    FindPreviousInstruction( Code : PByte; Size : Cardinal; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; DesiredInstructionOffset : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : pIcedDetail = nil ) : Cardinal; overload;
-//    function    PointerScan( Code : PByte; Size : Cardinal; var results : tCAPSTONEPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tCAPSTONEPointerScanProcessEvent = nil ) : Cardinal;
 
 interface
+
+{$WARN COMPARING_SIGNED_UNSIGNED OFF}
 
 {$IF CompilerVersion >= 22}
   {$LEGACYIFEND ON}
@@ -22,7 +23,7 @@ interface
 {.$DEFINE DECODER_LOCAL_POSITION} // Buffer-Position is saved in Local-Variable, updated each Decode
 
 {$DEFINE AssemblyTools} // MS test again in the end
-{$DEFINE TEST_FUNCTIONS} // MS disable
+{.$DEFINE TEST_FUNCTIONS}
 
 uses
   Classes, SysUtils,
@@ -36,6 +37,7 @@ type
     fBitness  : TIcedBitness;
     fData     : PByte;
     fSize     : NativeUInt;
+    fIPosition: NativeUInt;
     {$IFDEF DECODER_LOCAL_POSITION}
     fPosition : NativeUInt;
     {$ENDIF DECODER_LOCAL_POSITION}
@@ -47,6 +49,8 @@ type
     function    GetPosition : NativeUInt;
     procedure   SetPosition( Value : NativeUInt );
     function    GetMaxPosition : NativeUInt;
+    function    GetInstructionFirstByte : PByte;
+    function    GetCurrentByte : PByte;
     function    GetLastError : TDecoderError;
   public
     constructor Create( Bitness : TIcedBitness = bt64 ); reintroduce;
@@ -58,13 +62,17 @@ type
     {$ENDIF AssemblyTools}
     procedure   GetConstantOffsets( var Instruction : TInstruction; var ConstantOffsets : TConstantOffsets ); {$IF CompilerVersion >= 23}inline;{$IFEND}
 
-    property    Handle      : Pointer       read GetHandle;
-    property    Bitness     : TIcedBitness  read GetBitness      write SetBitness;
+    property    Handle               : Pointer       read GetHandle;
+    property    Bitness              : TIcedBitness  read GetBitness      write SetBitness;
     function    CanDecode : Boolean;
-    property    IP          : UInt64        read GetIP           write SetIP;
-    property    Position    : NativeUInt    read GetPosition     write SetPosition;
-    property    MaxPosition : NativeUInt    read GetMaxPosition;
-    property    LastError   : TDecoderError read GetLastError;
+    property    IP                   : UInt64        read GetIP           write SetIP;
+    property    Position             : NativeUInt    read GetPosition     write SetPosition;
+    property    MaxPosition          : NativeUInt    read GetMaxPosition;
+
+    property    InstructionFirstByte : PByte         read GetInstructionFirstByte;
+    property    CurrentByte          : PByte         read GetCurrentByte;
+
+    property    LastError            : TDecoderError read GetLastError;
   end;
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -228,6 +236,7 @@ type
     CC_le                           : TCC_le;
     CC_g                            : TCC_g;
   end;
+  PIcedFormatterSettings = ^TIcedFormatterSettings;
 
   TIcedFormatter = class
   private
@@ -403,7 +412,8 @@ type
     destructor  Destroy; override;
     procedure   DefaultSettings;
 
-    procedure   Format( var Instruction: TInstruction; Output: PAnsiChar; Size : NativeUInt ); overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+    function    FormatToString( var Instruction: TInstruction ) : AnsiString; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+    procedure   Format( var Instruction: TInstruction; AOutput: PAnsiChar; Size : NativeUInt ); overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
     procedure   Format( var Instruction: TInstruction ); overload; {$IF CompilerVersion >= 23}inline;{$IFEND} // TFormatterOutputCallback
 
     property    Handle                          : Pointer                            read GetHandle;
@@ -418,6 +428,9 @@ type
 
     // Options
     property    Options                         : TIcedFormatterSettings             read GetOptions                        write SetOptions;
+    procedure   SettingsToStringList( Settings : TIcedFormatterSettings; var StrL : TStringList );
+    function    StringListToSettings( StrL : TStringList; Settings : PIcedFormatterSettings = nil ) : boolean;
+
     // Masm
     property    AddDsPrefix32                   : Boolean                            read GetAddDsPrefix32                  write SetAddDsPrefix32;
     property    SymbolDisplacementInBrackets    : Boolean                            read GetSymbolDisplacementInBrackets   write SetSymbolDisplacementInBrackets;
@@ -493,6 +506,23 @@ type
   end;
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  tIcedPointerScanResult = record
+    Origin      : UInt64;
+    Instruction : string;
+    vPointer    : UInt64;
+    Count       : Word;
+  end;
+  tIcedPointerScanResults = Array of tIcedPointerScanResult;
+
+  tIcedReferenceScanResult = record
+    Origin      : UInt64;
+    Instruction : string;
+  end;
+  tIcedReferenceScanResults = Array of tIcedReferenceScanResult;
+
+  tIcedPointerScanProcessEvent = procedure( Current, Total : Cardinal; var Cancel : Boolean ) of object;
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   TIced = class
   private
     fDecoder      : TIcedDecoder;
@@ -525,6 +555,12 @@ type
     function    DissambleAddress( var Data : TByteInstruction; Address : UInt64; Instruction : PString = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
     function    DissambleAddress( Data : PByte; Size : Cardinal; Address : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
     {$ENDIF AssemblyTools}
+    function    PointerScan( Code : PByte; Size : Cardinal; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+    function    PointerScan( Data : TMemoryStream; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+    function    ReferenceScan( Code : PByte; Size : Cardinal; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+    function    ReferenceScan( Data : TMemoryStream; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+    function    FindInstruction( Data : PByte; Size : Cardinal; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
+    function    FindInstruction( Data : TMemoryStream; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
   end;
 
 var
@@ -542,13 +578,13 @@ const
   );
 
 function Test( StrL : TStringList ) : Boolean;
-function Test_Decode( Data : PByte; Size : Cardinal; RIP : UInt64; Output : TStringList; FormatterType : TIcedFormatterType = ftMasm;
+function Test_Decode( Data : PByte; Size : Cardinal; RIP : UInt64; AOutput : TStringList; FormatterType : TIcedFormatterType = ftMasm;
                       SymbolResolver : TSymbolResolverCallback = nil;
                       FormatterOptionsProviderCallback : TFormatterOptionsProviderCallback = nil;
                       FormatterOutputCallback : TFormatterOutputCallback = nil;
                       Assembly : Boolean = True; DecodeInfos : Boolean = True; Infos : Boolean = True ) : Boolean;
-function  Test_ReEncode( Data : PByte; Size : Cardinal; RIP : UInt64; {LocalBuffer : Boolean = False;} BlockEncode : Boolean = False; Output : TStringList = nil ) : Boolean;
-procedure Test_Assemble( Output : TStringList; RIP : UInt64 = UInt64( $00001248FC840000 ) );
+function  Test_ReEncode( Data : PByte; Size : Cardinal; RIP : UInt64; {LocalBuffer : Boolean = False;} BlockEncode : Boolean = False; AOutput : TStringList = nil ) : Boolean;
+procedure Test_Assemble( AOutput : TStringList; RIP : UInt64 = UInt64( $00001248FC840000 ) );
 {$ENDIF TEST_FUNCTIONS}
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -562,9 +598,12 @@ begin
   fBitness  := Bitness;
   fData     := nil;
   fSize     := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  fIPosition:= 0;
   {$IFDEF DECODER_LOCAL_POSITION}
   fPosition := 0;
   {$ENDIF DECODER_LOCAL_POSITION}
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
 end;
 
 destructor TIcedDecoder.Destroy;
@@ -621,9 +660,12 @@ begin
     end;
   fData     := Data;
   fSize     := Size;
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  fIPosition:= 0;
   {$IFDEF DECODER_LOCAL_POSITION}
   fPosition := 0;
   {$ENDIF DECODER_LOCAL_POSITION}
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
 
   fHandle := Decoder_Create( Cardinal( fBitness ), Data, Size, IP, Options );
 end;
@@ -715,6 +757,44 @@ begin
   {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
 end;
 
+function TIcedDecoder.GetInstructionFirstByte : PByte;
+begin
+  result := nil;
+  if NOT Assigned( self ) then
+    Exit;
+  if NOT Assigned( fHandle ) then
+    Exit;
+  if NOT Assigned( fData ) OR ( fSize = 0 ) then
+    Exit;
+
+  {$IFDEF DECODER_LOCAL_POSITION}
+  if ( fPosition = 0 ) then
+    Exit;
+  {$ELSE}
+  if ( Position = 0 ) then
+    Exit;
+  {$ENDIF DECODER_LOCAL_POSITION}
+
+  result := PByte( PAnsiChar( fData ) + fIPosition );
+end;
+
+function TIcedDecoder.GetCurrentByte : PByte;
+begin
+  result := nil;
+  if NOT Assigned( self ) then
+    Exit;
+  if NOT Assigned( fHandle ) then
+    Exit;
+  if NOT Assigned( fData ) OR ( fSize = 0 ) then
+    Exit;
+
+  {$IFDEF DECODER_LOCAL_POSITION}
+  result := PByte( PAnsiChar( fData ) + fPosition );
+  {$ELSE}
+  result := PByte( PAnsiChar( fData ) + Position );
+  {$ENDIF DECODER_LOCAL_POSITION}
+end;
+
 function TIcedDecoder.GetLastError : TDecoderError;
 begin
   result := deNone;
@@ -737,11 +817,22 @@ begin
     FillChar( Instruction, SizeOf( Instruction ), 0 );
     Exit;
     end;
+
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  {$IFDEF DECODER_LOCAL_POSITION}
+  fIPosition := fPosition;
+  {$ELSE}
+  fIPosition := Position;
+  {$ENDIF DECODER_LOCAL_POSITION}
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+
   Decoder_Decode( fHandle, Instruction );
 
   {$IFDEF DECODER_LOCAL_POSITION}
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
 //  fPosition := Position;
   Inc( fPosition, Instruction.len );
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
   {$ENDIF DECODER_LOCAL_POSITION}
 end;
 
@@ -765,6 +856,14 @@ begin
     Exit;
     end;
 
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  {$IFDEF DECODER_LOCAL_POSITION}
+  fIPosition := fPosition;
+  {$ELSE}
+  fIPosition := Position;
+  {$ENDIF DECODER_LOCAL_POSITION}
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+
   Decoder_Decode( fHandle, Instruction );
 
   Details.Items[ Details.Count ].Code                 := Instruction.code;
@@ -775,17 +874,42 @@ begin
   Details.Items[ Details.Count ].Size                 := Instruction.len;
 
   FillChar( Details.Items[ Details.Count ].Registers_, SizeOf( Details.Items[ Details.Count ].Registers_ ), 0 ); // MS ?
-//  Details.Items[ Details.Count ].Registers_.Target    := Instruction. // MS
+//  Details.Items[ Details.Count ].Registers_.Target    := Instruction. // MS working for all but lea
 //  Details.Items[ Details.Count ].Registers_.Source    := Instruction.
 //  Details.Items[ Details.Count ].Registers_.Parameter := Instruction.
 
-  Decoder_GetConstantOffsets( fHandle, Instruction, Offsets ); // MS !!
+{
+LEA
+Multiplier is always Byte 4 before displacement
+If Length = 3 or Displacement starts at 3 its not used
+488D84 1A 00010000 = 1A = 1
+488D84 5A 00010000 = 1A = 2
+488D84 9A 00010000 = 1A = 4
+488D84 DA 00010000 = 1A = 8
+
+488D841A00010000 lea rax, [rdx+rbx+0x100]
+488D845A00010000 lea rax, [rdx+rbx*2+0x100]
+488D849A00010000 lea rax, [rdx+rbx*4+0x100]
+488D84DA00010000 lea rax, [rdx+rbx*8+0x100]
+
+488D041A lea rax, [rdx+rbx*1]
+488D045A lea rax, [rdx+rbx*2]
+488D049A lea rax, [rdx+rbx*4]
+488D04DA lea rax, [rdx+rbx*8]
+
+678D041A lea eax, [edx+ebx*1]
+678D045A lea eax, [edx+ebx*2]
+678D049A lea eax, [edx+ebx*4]
+678D04DA lea eax, [edx+ebx*8]
+}
+
+  Decoder_GetConstantOffsets( fHandle, Instruction, Offsets );
   {if ForceMask AND ( Offsets.displacement_offset <> 0 ) then
     Details.Items[ Details.Count ].Mask := True
   else} if ( Offsets.displacement_offset <> 0 ) AND ( Offsets.displacement_size = 4 ) then
     Details.Items[ Details.Count ].Mask := ( ABS( Integer( Instruction.mem_displ-Instruction.Rip-Instruction.Len ) ) >= $10000 ); // value is bigger than 65535 (positive and negative)
 
-  if Details.Items[ Details.Count ].IsJump then
+  if Details.Items[ Details.Count ].IsJump AND ( ( Instruction.op_kinds[ 0 ] <> okRegister_ ) OR ( Instruction.mem_displ <> 0 ) ) then
     begin
     Details.Items[ Details.Count ].JumpTargetID := Details.TargetCount;
     Inc( Details.TargetCount );
@@ -793,7 +917,7 @@ begin
       SetLength( Details.JumpTargets, Details.TargetCount+JUMPTARGET_BLOCKSIZE );
 
     FillChar( Details.JumpTargets[ Details.Items[ Details.Count ].JumpTargetID ], SizeOf( Details.JumpTargets[ Details.Items[ Details.Count ].JumpTargetID ] ), 0 );
-//    Details.JumpTargets[ Details.Items[ Details.Count ].JumpTargetID ].IsRegJump     := ( Instruction.op_kinds[ 0 ] = okRegister_ ) OR ( Instruction.mem_displ = 0 );
+//    Details.JumpTargets[ Details.Items[ Details.Count ].JumpTargetID ].IsRegJump     := Instruction.IsRegJump;
     {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
     Details.JumpTargets[ Details.Items[ Details.Count ].JumpTargetID ].Target        := Instruction.mem_displ;
     {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
@@ -1361,34 +1485,59 @@ begin
     fOutputHandle := nil;
 end;
 
-procedure TIcedFormatter.Format( var Instruction: TInstruction; Output: PAnsiChar; Size : NativeUInt );
+function TIcedFormatter.FormatToString( var Instruction: TInstruction ) : AnsiString;
+var
+  tOutput : Array [ 0..255 ] of AnsiChar;
 begin
-  if NOT Assigned( Output ) then
+  result := '';
+  if NOT Assigned( self ) then
+    Exit;
+
+  if NOT Assigned( fHandle ) then
+    Exit;
+
+  FillChar( tOutput[ 0 ], Length( tOutput ), 0 );
+  case fType of
+//    ftMasm        : MasmFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
+    ftNasm        : NasmFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
+    ftGas         : GasFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
+    ftIntel       : IntelFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
+    ftFast        : FastFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
+    ftSpecialized : SpecializedFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
+  else
+    MasmFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
+  end;
+  result := AnsiString( tOutput )
+end;
+
+procedure TIcedFormatter.Format( var Instruction: TInstruction; AOutput: PAnsiChar; Size : NativeUInt );
+begin
+  if NOT Assigned( AOutput ) then
     Exit;
   if ( Size = 0 ) then
     Exit;
 
   if NOT Assigned( self ) then
     begin
-    FillChar( Output^, Size, 0 );
+    FillChar( AOutput^, Size, 0 );
     Exit;
     end;
 
   if NOT Assigned( fHandle ) then
     begin
-    FillChar( Output^, Size, 0 );
+    FillChar( AOutput^, Size, 0 );
     Exit;
     end;
 
   case fType of
-//    ftMasm        : MasmFormatter_Format( fHandle, Instruction, Output, Size );
-    ftNasm        : NasmFormatter_Format( fHandle, Instruction, Output, Size );
-    ftGas         : GasFormatter_Format( fHandle, Instruction, Output, Size );
-    ftIntel       : IntelFormatter_Format( fHandle, Instruction, Output, Size );
-    ftFast        : FastFormatter_Format( fHandle, Instruction, Output, Size );
-    ftSpecialized : SpecializedFormatter_Format( fHandle, Instruction, Output, Size );
+//    ftMasm        : MasmFormatter_Format( fHandle, Instruction, AOutput, Size );
+    ftNasm        : NasmFormatter_Format( fHandle, Instruction, AOutput, Size );
+    ftGas         : GasFormatter_Format( fHandle, Instruction, AOutput, Size );
+    ftIntel       : IntelFormatter_Format( fHandle, Instruction, AOutput, Size );
+    ftFast        : FastFormatter_Format( fHandle, Instruction, AOutput, Size );
+    ftSpecialized : SpecializedFormatter_Format( fHandle, Instruction, AOutput, Size );
   else
-    MasmFormatter_Format( fHandle, Instruction, Output, Size );
+    MasmFormatter_Format( fHandle, Instruction, AOutput, Size );
   end;
 end;
 
@@ -1424,7 +1573,7 @@ begin
   if NOT uIced.Imports.IsInitDLL then
     Exit;
 
-  if ( fType = ftMasm ) then
+  if ( fType in [ ftMasm, ftCapstone ] ) then
     begin
     // Masm
     result.AddDsPrefix32                   := MasmFormatter_GetAddDsPrefix32( fHandle );
@@ -1618,6 +1767,171 @@ begin
   CC_g                           := Value.CC_g;
 end;
 
+procedure TIcedFormatter.SettingsToStringList( Settings : TIcedFormatterSettings; var StrL : TStringList );
+begin
+  if NOT Assigned( self ) then
+    Exit;
+
+  if NOT Assigned( StrL ) then
+    Exit;
+  StrL.Clear;
+
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'AddDsPrefix32', Byte( Settings.AddDsPrefix32 ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'SymbolDisplacementInBrackets', Byte( Settings.SymbolDisplacementInBrackets ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'DisplacementInBrackets', Byte( Settings.DisplacementInBrackets ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'ShowSignExtendedImmediateSize', Byte( Settings.ShowSignExtendedImmediateSize ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'NakedRegisters', Byte( Settings.NakedRegisters ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'ShowMnemonicSizeSuffix', Byte( Settings.ShowMnemonicSizeSuffix ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'SpaceAfterMemoryOperandComma', Byte( Settings.SpaceAfterMemoryOperandComma ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'UseHexPrefix', Byte( Settings.UseHexPrefix ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'AlwaysShowMemorySize', Byte( Settings.AlwaysShowMemorySize ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'SpaceAfterOperandSeparator', Byte( Settings.SpaceAfterOperandSeparator ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'AlwaysShowSegmentRegister', Byte( Settings.AlwaysShowSegmentRegister ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'UsePseudoOps', Byte( Settings.UsePseudoOps ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'RipRelativeAddresses', Byte( Settings.RipRelativeAddresses ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'ShowSymbolAddress', Byte( Settings.ShowSymbolAddress ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'UpperCaseHex', Byte( Settings.UpperCaseHex ) ] ) );
+
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'UpperCasePrefixes', Byte( Settings.UpperCasePrefixes ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'UpperCaseMnemonics', Byte( Settings.UpperCaseMnemonics ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'UpperCaseRegisters', Byte( Settings.UpperCaseRegisters ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'UpperCaseKeyWords', Byte( Settings.UpperCaseKeyWords ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'UpperCaseDecorators', Byte( Settings.UpperCaseDecorators ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'UpperCaseEverything', Byte( Settings.UpperCaseEverything ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'FirstOperandCharIndex', Settings.FirstOperandCharIndex ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'TabSize', Settings.TabSize ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'SpaceAfterMemoryBracket', Byte( Settings.SpaceAfterMemoryBracket ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'SpaceBetweenMemoryAddOperators', Byte( Settings.SpaceBetweenMemoryAddOperators ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'SpaceBetweenMemoryMulOperators', Byte( Settings.SpaceBetweenMemoryMulOperators ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'ScaleBeforeIndex', Byte( Settings.ScaleBeforeIndex ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'AlwaysShowScale', Byte( Settings.AlwaysShowScale ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'ShowZeroDisplacements', Byte( Settings.ShowZeroDisplacements ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%s', [ 'HexPrefix', Settings.HexPrefix ] ) );
+  StrL.Add( SysUtils.Format( '%s=%s', [ 'HexSuffix', Settings.HexSuffix ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'HexDigitGroupSize', Settings.HexDigitGroupSize ] ) );
+  StrL.Add( SysUtils.Format( '%s=%s', [ 'DecimalPrefix', Settings.DecimalPrefix ] ) );
+  StrL.Add( SysUtils.Format( '%s=%s', [ 'DecimalSuffix', Settings.DecimalSuffix ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'DecimalDigitGroupSize', Settings.DecimalDigitGroupSize ] ) );
+  StrL.Add( SysUtils.Format( '%s=%s', [ 'OctalPrefix', Settings.OctalPrefix ] ) );
+  StrL.Add( SysUtils.Format( '%s=%s', [ 'OctalSuffix', Settings.OctalSuffix ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'OctalDigitGroupSize', Settings.OctalDigitGroupSize ] ) );
+  StrL.Add( SysUtils.Format( '%s=%s', [ 'BinaryPrefix', Settings.BinaryPrefix ] ) );
+  StrL.Add( SysUtils.Format( '%s=%s', [ 'BinarySuffix', Settings.BinarySuffix ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'BinaryDigitGroupSize', Settings.BinaryDigitGroupSize ] ) );
+  StrL.Add( SysUtils.Format( '%s=%s', [ 'DigitSeparator', Settings.DigitSeparator ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'LeadingZeros', Byte( Settings.LeadingZeros ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'SmallHexNumbersInDecimal', Byte( Settings.SmallHexNumbersInDecimal ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'AddLeadingZeroToHexNumbers', Byte( Settings.AddLeadingZeroToHexNumbers ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'NumberBase', Byte( Settings.NumberBase ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'BranchLeadingZeros', Byte( Settings.BranchLeadingZeros ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'SignedImmediateOperands', Byte( Settings.SignedImmediateOperands ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'SignedMemoryDisplacements', Byte( Settings.SignedMemoryDisplacements ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'DisplacementLeadingZeros', Byte( Settings.DisplacementLeadingZeros ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'MemorySizeOptions', Byte( Settings.MemorySizeOptions )  ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'ShowBranchSize', Byte( Settings.ShowBranchSize ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'PreferST0', Byte( Settings.PreferST0 ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'ShowUselessPrefixes', Byte( Settings.ShowUselessPrefixes ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'CC_b', Byte( Settings.CC_b ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'CC_ae', Byte( Settings.CC_ae ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'CC_e', Byte( Settings.CC_e ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'CC_ne', Byte( Settings.CC_ne ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'CC_be', Byte( Settings.CC_be ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'CC_a', Byte( Settings.CC_a ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'CC_p', Byte( Settings.CC_p ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'CC_np', Byte( Settings.CC_np ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'CC_l', Byte( Settings.CC_l ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'CC_ge', Byte( Settings.CC_ge ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'CC_le', Byte( Settings.CC_le ) ] ) );
+  StrL.Add( SysUtils.Format( '%s=%d', [ 'CC_g', Byte( Settings.CC_g ) ] ) );
+end;
+
+function TIcedFormatter.StringListToSettings( StrL : TStringList; Settings : PIcedFormatterSettings = nil ) : boolean;
+var
+  tmp : TIcedFormatterSettings;
+begin
+  result := False;
+  if NOT Assigned( self ) then
+    Exit;
+
+  if NOT Assigned( StrL ) then
+    Exit;
+  StrL.Delimiter := '=';
+
+  if NOT Assigned( Settings ) then
+    Settings := @tmp;
+
+  Settings^.AddDsPrefix32 := Boolean( StrToIntDef( StrL.Values[ 'AddDsPrefix32' ], Byte( fOptions.AddDsPrefix32 ) ) );
+  Settings^.SymbolDisplacementInBrackets := Boolean( StrToIntDef( StrL.Values[ 'SymbolDisplacementInBrackets' ], Byte( fOptions.SymbolDisplacementInBrackets ) ) );
+  Settings^.DisplacementInBrackets := Boolean( StrToIntDef( StrL.Values[ 'DisplacementInBrackets' ], Byte( fOptions.DisplacementInBrackets ) ) );
+  Settings^.ShowSignExtendedImmediateSize := Boolean( StrToIntDef( StrL.Values[ 'ShowSignExtendedImmediateSize' ], Byte( fOptions.ShowSignExtendedImmediateSize ) ) );
+  Settings^.NakedRegisters := Boolean( StrToIntDef( StrL.Values[ 'NakedRegisters' ], Byte( fOptions.NakedRegisters ) ) );
+  Settings^.ShowMnemonicSizeSuffix := Boolean( StrToIntDef( StrL.Values[ 'ShowMnemonicSizeSuffix' ], Byte( fOptions.ShowMnemonicSizeSuffix ) ) );
+  Settings^.SpaceAfterMemoryOperandComma := Boolean( StrToIntDef( StrL.Values[ 'SpaceAfterMemoryOperandComma' ], Byte( fOptions.SpaceAfterMemoryOperandComma ) ) );
+  Settings^.UseHexPrefix := Boolean( StrToIntDef( StrL.Values[ 'UseHexPrefix' ], Byte( fOptions.UseHexPrefix ) ) );
+  Settings^.AlwaysShowMemorySize := Boolean( StrToIntDef( StrL.Values[ 'AlwaysShowMemorySize' ], Byte( fOptions.AlwaysShowMemorySize ) ) );
+  Settings^.SpaceAfterOperandSeparator := Boolean( StrToIntDef( StrL.Values[ 'SpaceAfterOperandSeparator' ], Byte( fOptions.SpaceAfterOperandSeparator ) ) );
+  Settings^.AlwaysShowSegmentRegister := Boolean( StrToIntDef( StrL.Values[ 'AlwaysShowSegmentRegister' ], Byte( fOptions.AlwaysShowSegmentRegister ) ) );
+  Settings^.UsePseudoOps := Boolean( StrToIntDef( StrL.Values[ 'UsePseudoOps' ], Byte( fOptions.UsePseudoOps ) ) );
+  Settings^.RipRelativeAddresses := Boolean( StrToIntDef( StrL.Values[ 'RipRelativeAddresses' ], Byte( fOptions.RipRelativeAddresses ) ) );
+  Settings^.ShowSymbolAddress := Boolean( StrToIntDef( StrL.Values[ 'ShowSymbolAddress' ], Byte( fOptions.ShowSymbolAddress ) ) );
+  Settings^.UpperCaseHex := Boolean( StrToIntDef( StrL.Values[ 'UpperCaseHex' ], Byte( fOptions.UpperCaseHex ) ) );
+
+  Settings^.UpperCasePrefixes := Boolean( StrToIntDef( StrL.Values[ 'UpperCasePrefixes' ], Byte( fOptions.UpperCasePrefixes ) ) );
+  Settings^.UpperCaseMnemonics := Boolean( StrToIntDef( StrL.Values[ 'UpperCaseMnemonics' ], Byte( fOptions.UpperCaseMnemonics ) ) );
+  Settings^.UpperCaseRegisters := Boolean( StrToIntDef( StrL.Values[ 'UpperCaseRegisters' ], Byte( fOptions.UpperCaseRegisters ) ) );
+  Settings^.UpperCaseKeyWords := Boolean( StrToIntDef( StrL.Values[ 'UpperCaseKeyWords' ], Byte( fOptions.UpperCaseKeyWords ) ) );
+  Settings^.UpperCaseDecorators := Boolean( StrToIntDef( StrL.Values[ 'UpperCaseDecorators' ], Byte( fOptions.UpperCaseDecorators ) ) );
+  Settings^.UpperCaseEverything := Boolean( StrToIntDef( StrL.Values[ 'UpperCaseEverything' ], Byte( fOptions.UpperCaseEverything ) ) );
+  Settings^.FirstOperandCharIndex := StrToIntDef( StrL.Values[ 'FirstOperandCharIndex' ], 0 );
+  Settings^.TabSize := StrToIntDef( StrL.Values[ 'TabSize' ], 0 );
+  Settings^.SpaceAfterMemoryBracket := Boolean( StrToIntDef( StrL.Values[ 'SpaceAfterMemoryBracket' ], Byte( fOptions.SpaceAfterMemoryBracket ) ) );
+  Settings^.SpaceBetweenMemoryAddOperators := Boolean( StrToIntDef( StrL.Values[ 'SpaceBetweenMemoryAddOperators' ], Byte( fOptions.SpaceBetweenMemoryAddOperators ) ) );
+  Settings^.SpaceBetweenMemoryMulOperators := Boolean( StrToIntDef( StrL.Values[ 'SpaceBetweenMemoryMulOperators' ], Byte( fOptions.SpaceBetweenMemoryMulOperators ) ) );
+  Settings^.ScaleBeforeIndex := Boolean( StrToIntDef( StrL.Values[ 'ScaleBeforeIndex' ], Byte( fOptions.ScaleBeforeIndex ) ) );
+  Settings^.AlwaysShowScale := Boolean( StrToIntDef( StrL.Values[ 'AlwaysShowScale' ], Byte( fOptions.AlwaysShowScale ) ) );
+  Settings^.ShowZeroDisplacements := Boolean( StrToIntDef( StrL.Values[ 'ShowZeroDisplacements' ], Byte( fOptions.ShowZeroDisplacements ) ) );
+  Settings^.HexPrefix := AnsiString( StrL.Values[ 'HexPrefix' ] );
+  Settings^.HexSuffix := AnsiString( StrL.Values[ 'HexSuffix' ] );
+  Settings^.HexDigitGroupSize := StrToIntDef( StrL.Values[ 'HexDigitGroupSize' ], 0 );
+  Settings^.DecimalPrefix := AnsiString( StrL.Values[ 'DecimalPrefix' ] );
+  Settings^.DecimalSuffix := AnsiString( StrL.Values[ 'DecimalSuffix' ] );
+  Settings^.DecimalDigitGroupSize := StrToIntDef( StrL.Values[ 'DecimalDigitGroupSize' ], 0 );
+  Settings^.OctalPrefix := AnsiString( StrL.Values[ 'OctalPrefix' ] );
+  Settings^.OctalSuffix := AnsiString( StrL.Values[ 'OctalSuffix' ] );
+  Settings^.OctalDigitGroupSize := StrToIntDef( StrL.Values[ 'OctalDigitGroupSize' ], 0 );
+  Settings^.BinaryPrefix := AnsiString( StrL.Values[ 'BinaryPrefix' ] );
+  Settings^.BinarySuffix := AnsiString( StrL.Values[ 'BinarySuffix' ] );
+  Settings^.BinaryDigitGroupSize := StrToIntDef( StrL.Values[ 'BinaryDigitGroupSize' ], 0 );
+  Settings^.DigitSeparator := AnsiString( StrL.Values[ 'DigitSeparator' ] );
+  Settings^.LeadingZeros := Boolean( StrToIntDef( StrL.Values[ 'LeadingZeros' ], Byte( fOptions.LeadingZeros ) ) );
+  Settings^.SmallHexNumbersInDecimal := Boolean( StrToIntDef( StrL.Values[ 'SmallHexNumbersInDecimal' ], Byte( fOptions.SmallHexNumbersInDecimal ) ) );
+  Settings^.AddLeadingZeroToHexNumbers := Boolean( StrToIntDef( StrL.Values[ 'AddLeadingZeroToHexNumbers' ], Byte( fOptions.AddLeadingZeroToHexNumbers ) ) );
+  Settings^.NumberBase := TNumberBase( StrToIntDef( StrL.Values[ 'NumberBase' ], Byte( fOptions.NumberBase ) ) );
+  Settings^.BranchLeadingZeros := Boolean( StrToIntDef( StrL.Values[ 'BranchLeadingZeros' ], Byte( fOptions.BranchLeadingZeros ) ) );
+  Settings^.SignedImmediateOperands := Boolean( StrToIntDef( StrL.Values[ 'SignedImmediateOperands' ], Byte( fOptions.SignedImmediateOperands ) ) );
+  Settings^.SignedMemoryDisplacements := Boolean( StrToIntDef( StrL.Values[ 'SignedMemoryDisplacements' ], Byte( fOptions.SignedMemoryDisplacements ) ) );
+  Settings^.DisplacementLeadingZeros := Boolean( StrToIntDef( StrL.Values[ 'DisplacementLeadingZeros' ], Byte( fOptions.DisplacementLeadingZeros ) ) );
+  Settings^.MemorySizeOptions := TMemorySizeOptions( StrToIntDef( StrL.Values[ 'MemorySizeOptions' ], Byte( fOptions.MemorySizeOptions ) ) );
+  Settings^.ShowBranchSize := Boolean( StrToIntDef( StrL.Values[ 'ShowBranchSize' ], Byte( fOptions.ShowBranchSize ) ) );
+  Settings^.PreferST0 := Boolean( StrToIntDef( StrL.Values[ 'PreferST0' ], Byte( fOptions.PreferST0 ) ) );
+  Settings^.ShowUselessPrefixes := Boolean( StrToIntDef( StrL.Values[ 'ShowUselessPrefixes' ], Byte( fOptions.ShowUselessPrefixes ) ) );
+  Settings^.CC_b := TCC_b( StrToIntDef( StrL.Values[ 'CC_b' ], Byte( fOptions.CC_b ) ) );
+  Settings^.CC_ae := TCC_ae( StrToIntDef( StrL.Values[ 'CC_ae' ], Byte( fOptions.CC_ae ) ) );
+  Settings^.CC_e := TCC_e( StrToIntDef( StrL.Values[ 'CC_e' ], Byte( fOptions.CC_e ) ) );
+  Settings^.CC_ne := TCC_ne( StrToIntDef( StrL.Values[ 'CC_ne' ], Byte( fOptions.CC_ne ) ) );
+  Settings^.CC_be := TCC_be( StrToIntDef( StrL.Values[ 'CC_be' ], Byte( fOptions.CC_be ) ) );
+  Settings^.CC_a := TCC_a( StrToIntDef( StrL.Values[ 'CC_a' ], Byte( fOptions.CC_a ) ) );
+  Settings^.CC_p := TCC_p( StrToIntDef( StrL.Values[ 'CC_p' ], Byte( fOptions.CC_p ) ) );
+  Settings^.CC_np := TCC_np( StrToIntDef( StrL.Values[ 'CC_np' ], Byte( fOptions.CC_np ) ) );
+  Settings^.CC_l := TCC_l( StrToIntDef( StrL.Values[ 'CC_l' ], Byte( fOptions.CC_l ) ) );
+  Settings^.CC_ge := TCC_ge( StrToIntDef( StrL.Values[ 'CC_ge' ], Byte( fOptions.CC_ge ) ) );
+  Settings^.CC_le := TCC_le( StrToIntDef( StrL.Values[ 'CC_le' ], Byte( fOptions.CC_le ) ) );
+  Settings^.CC_g := TCC_g( StrToIntDef( StrL.Values[ 'CC_g' ], Byte( fOptions.CC_g ) ) );
+
+  if ( Settings = @tmp ) then
+    Options := tmp;
+end;
+
 procedure TIcedFormatter.SetCapstoneOptions;
 begin
   if NOT Assigned( self ) then
@@ -1642,7 +1956,7 @@ begin
     Exit;
   if NOT Assigned( fHandle ) then
     Exit;
-  if ( fType <> ftMasm ) then
+  if NOT ( fType in [ ftMasm, ftCapstone ] ) then
     Exit;
 
   result := fOptions.AddDsPrefix32;
@@ -1655,7 +1969,7 @@ begin
     Exit;
   if NOT Assigned( fHandle ) then
     Exit;
-  if ( fType <> ftMasm ) then
+  if NOT ( fType in [ ftMasm, ftCapstone ] ) then
     Exit;
   if ( fOptions.AddDsPrefix32 = Value ) then
     Exit;
@@ -1671,7 +1985,7 @@ begin
     Exit;
   if NOT Assigned( fHandle ) then
     Exit;
-  if ( fType <> ftMasm ) then
+  if NOT ( fType in [ ftMasm, ftCapstone ] ) then
     Exit;
 
   result := fOptions.SymbolDisplacementInBrackets;
@@ -1684,7 +1998,7 @@ begin
     Exit;
   if NOT Assigned( fHandle ) then
     Exit;
-  if ( fType <> ftMasm ) then
+  if NOT ( fType in [ ftMasm, ftCapstone ] ) then
     Exit;
   if ( fOptions.SymbolDisplacementInBrackets = Value ) then
     Exit;
@@ -1700,7 +2014,7 @@ begin
     Exit;
   if NOT Assigned( fHandle ) then
     Exit;
-  if ( fType <> ftMasm ) then
+  if NOT ( fType in [ ftMasm, ftCapstone ] ) then
     Exit;
 
   result := fOptions.DisplacementInBrackets;
@@ -1713,7 +2027,7 @@ begin
     Exit;
   if NOT Assigned( fHandle ) then
     Exit;
-  if ( fType <> ftMasm ) then
+  if NOT ( fType in [ ftMasm, ftCapstone ] ) then
     Exit;
   if ( fOptions.DisplacementInBrackets = Value ) then
     Exit;
@@ -3655,6 +3969,7 @@ begin
 
   S := TMemoryStream.Create;
   S.LoadFromFile( FileName );
+
   if ( Offset <= S.Size ) then
     S.Position := Offset;
   result := DecodeFromStream( S, Size, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, CalcJumpLines );
@@ -3714,10 +4029,12 @@ begin
 
         S := '';
         for i := 0 to Instruction.len-1 do
+          begin
           S := S + IntToHex( Data^ );
+          Inc( Data );
+          end;
         StrL_Hex.Add( S );
 
-        Inc( Data, Instruction.len );
         Inc( result, Instruction.len );
         end;
       end
@@ -3749,10 +4066,12 @@ begin
 
         S := '';
         for i := 0 to Instruction.len-1 do
+          begin
           S := S + IntToHex( Data^ );
+          Inc( Data );
+          end;
         StrL_Hex.Add( S );
 
-        Inc( Data, Instruction.len );
         Inc( result, Instruction.len );
         end;
       end
@@ -3789,10 +4108,12 @@ begin
 
         S := '';
         for i := 0 to Instruction.len-1 do
+          begin
           S := S + IntToHex( Data^ );
+          Inc( Data );
+          end;
         StrL_Hex.Add( S );
 
-        Inc( Data, Instruction.len );
         Inc( result, Instruction.len );
         end;
       end
@@ -3816,10 +4137,12 @@ begin
 
         S := '';
         for i := 0 to Instruction.len-1 do
+          begin
           S := S + IntToHex( Data^ );
+          Inc( Data );
+          end;
         StrL_Hex.Add( S );
 
-        Inc( Data, Instruction.len );
         Inc( result, Instruction.len );
         end;
       end;
@@ -4992,6 +5315,360 @@ begin
 end;
 {$ENDIF AssemblyTools}
 
+function TIced.PointerScan( Code : PByte; Size : Cardinal; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
+const
+  BLOCK_SIZE   = 10000;
+  UPDATE_PERCENT = 0.25;
+var
+  Instruction : TInstruction;
+  Offsets     : TConstantOffsets;
+  i           : Integer;
+  done        : UInt64;
+  b           : Boolean;
+  Off         : UInt64;
+  Disp        : Int64;
+  Upd         : Cardinal;
+  UpdBytes    : Cardinal;
+
+  Cancel      : Boolean;
+begin
+  result := 0;
+  SetLength( results, 0 );
+  if NOT Assigned( Code ) then
+    Exit;
+  if ( Size = 0 ) then
+    Exit;
+
+  Decoder.SetData( Code, Size, CodeOffset );
+
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  done := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Cancel := False;
+
+  Upd := 0;
+  UpdBytes := Trunc( size * UPDATE_PERCENT );
+  while ( done < size ) do
+    begin
+    if Assigned( ProcessEvent ) AND ( Upd = 0 ) then
+      begin
+      ProcessEvent( done, size, Cancel );
+      if Cancel then
+        Break;
+      Upd := UpdBytes;
+      end;
+
+    Decoder.Decode( Instruction );
+
+    if Instruction.IsValid then
+      begin
+      Decoder.GetConstantOffsets( Instruction, Offsets );
+
+      if ( Offsets.displacement_size > 0 ) OR ( Offsets.immediate_size > 0 ) OR ( Offsets.immediate_size2 > 0 ) then
+        begin
+        {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+        Off := Instruction.next_rip;
+        {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+
+        case Offsets.displacement_size of
+          1 : Disp := PShortInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          2 : Disp := PSmallInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          4 : Disp := PInteger( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          8 : Disp := PInt64( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+        else
+          Disp := 0;
+        end;
+
+        if ( Disp > 0 ) then
+          Inc( Off, Disp )
+        else if ( Disp < 0 ) then
+          Dec( Off, Abs( Disp ) );
+
+        case Offsets.immediate_size of
+          1 : Disp := PShortInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          2 : Disp := PSmallInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          4 : Disp := PInteger( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          8 : Disp := PInt64( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+        else
+          Disp := 0;
+        end;
+
+        if ( Disp > 0 ) then
+          Inc( Off, Disp )
+        else if ( Disp < 0 ) then
+          Dec( Off, Abs( Disp ) );
+
+        case Offsets.immediate_size2 of
+          1 : Disp := PShortInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          2 : Disp := PSmallInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          4 : Disp := PInteger( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          8 : Disp := PInt64( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+        else
+          Disp := 0;
+        end;
+
+        if ( Disp > 0 ) then
+          Inc( Off, Disp )
+        else if ( Disp < 0 ) then
+          Dec( Off, Abs( Disp ) );
+
+        if ( ABS( Instruction.next_rip-Off ) >= $10000 ) then
+          begin
+          // Filter duplicates
+          b := false;
+          for i := Low( Results ) to result-1 do // High( Results ) do
+            begin
+            if ( Results[ i ].vPointer = Off ) then
+              begin
+              if ( Results[ i ].Count < High( Results[ i ].Count ) ) then
+                Inc( Results[ i ].Count );
+              b := True;
+              break;
+              end;
+            end;
+          if NOT b then
+            begin
+            if ( result >= Length( results ) ) then
+              SetLength( results, Length( results )+BLOCK_SIZE );
+            {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+            Results[ result ].Origin      := Instruction.RIP;
+            Results[ result ].Instruction := String( Formatter.FormatToString( Instruction ) );
+            Results[ result ].vPointer    := Off;
+            Results[ result ].Count       := 0;
+            {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+            Inc( result );
+            end;
+          end;
+        end;
+      end;
+
+    {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    done := done + Instruction.len;
+    Inc( Code, Instruction.len );
+//    Inc( CodeOffset, Instruction.len );
+    if ( Upd > Instruction.len )  then
+      Dec( Upd, Instruction.len )
+    else
+      Upd := 0;
+    {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    end;
+
+  SetLength( results, result );
+end;
+
+function TIced.PointerScan( Data : TMemoryStream; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
+begin
+  if NOT Assigned( Data ) then
+    begin
+    result := 0;
+    Exit;
+    end;
+  result := PointerScan( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Data.Size-Data.Position, Results, CodeOffset, ProcessEvent );
+end;
+
+function TIced.ReferenceScan( Code : PByte; Size : Cardinal; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
+const
+  BLOCK_SIZE     = 10000;
+  UPDATE_PERCENT = 0.25;
+var
+  Instruction : TInstruction;
+  Offsets     : TConstantOffsets;
+  done        : UInt64;
+  Off         : UInt64;
+  Disp        : Int64;
+  Upd         : Cardinal;
+  UpdBytes    : Cardinal;
+
+  Cancel      : Boolean;
+begin
+  result := 0;
+  SetLength( results, 0 );
+  if NOT Assigned( Code ) then
+    Exit;
+  if ( Size = 0 ) then
+    Exit;
+
+  Decoder.SetData( Code, Size, CodeOffset );
+
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  done := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Cancel := False;
+
+  Upd := 0;
+  UpdBytes := Trunc( size * UPDATE_PERCENT );
+  while ( done < size ) do
+    begin
+    if Assigned( ProcessEvent ) AND ( Upd = 0 ) then
+      begin
+      ProcessEvent( done, size, Cancel );
+      if Cancel then
+        Break;
+      Upd := UpdBytes;
+      end;
+
+    Decoder.Decode( Instruction );
+
+    if Instruction.IsValid then
+      begin
+      Decoder.GetConstantOffsets( Instruction, Offsets );
+
+      if ( Offsets.displacement_size > 0 ) OR ( Offsets.immediate_size > 0 ) OR ( Offsets.immediate_size2 > 0 ) then
+        begin
+        {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+        Off := Instruction.next_rip;
+        {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+
+        case Offsets.displacement_size of
+          1 : Disp := PShortInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          2 : Disp := PSmallInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          4 : Disp := PInteger( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          8 : Disp := PInt64( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+        else
+          Disp := 0;
+        end;
+
+        if ( Disp > 0 ) then
+          Inc( Off, Disp )
+        else if ( Disp < 0 ) then
+          Dec( Off, Abs( Disp ) );
+
+        case Offsets.immediate_size of
+          1 : Disp := PShortInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          2 : Disp := PSmallInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          4 : Disp := PInteger( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          8 : Disp := PInt64( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+        else
+          Disp := 0;
+        end;
+
+        if ( Disp > 0 ) then
+          Inc( Off, Disp )
+        else if ( Disp < 0 ) then
+          Dec( Off, Abs( Disp ) );
+
+        case Offsets.immediate_size2 of
+          1 : Disp := PShortInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          2 : Disp := PSmallInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          4 : Disp := PInteger( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          8 : Disp := PInt64( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+        else
+          Disp := 0;
+        end;
+
+        if ( Disp > 0 ) then
+          Inc( Off, Disp )
+        else if ( Disp < 0 ) then
+          Dec( Off, Abs( Disp ) );
+
+        if ( Reference = Off ) then
+          begin
+          if ( result >= Length( results ) ) then
+            SetLength( results, Length( results )+BLOCK_SIZE );
+          {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+          Results[ result ].Origin      := Instruction.RIP;
+          Results[ result ].Instruction := String( Formatter.FormatToString( Instruction ) );
+          {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+          Inc( result );
+          end;
+        end;
+      end;
+
+    {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    done := done + Instruction.len;
+    Inc( Code, Instruction.len );
+//    Inc( CodeOffset, Instruction.len );
+    if ( Upd > Instruction.len )  then
+      Dec( Upd, Instruction.len )
+    else
+      Upd := 0;
+    {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    end;
+
+  SetLength( results, result );
+end;
+
+function TIced.ReferenceScan( Data : TMemoryStream; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
+begin
+  if NOT Assigned( Data ) then
+    begin
+    result := 0;
+    Exit;
+    end;
+  result := ReferenceScan( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Data.Size-Data.Position, Reference, Results, CodeOffset, ProcessEvent );
+end;
+
+function TIced.FindInstruction( Data : PByte; Size : Cardinal; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal;
+const
+  BLOCKSIZE = 20;
+var
+  Instruction : TInstruction;
+  i           : Cardinal;
+begin
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  result := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  if NOT Assigned( self ) then
+    Exit;
+  if NOT Assigned( Data ) OR ( Size = 0 ) then
+    Exit;
+
+  if ( Offset > CodeOffset+Size ) then
+    Exit;
+
+  if ( CodeOffset > Offset ) then
+    Exit;
+
+  i := Offset-CodeOffset;
+  if ( i > BLOCKSIZE )  then
+    begin
+    i := i-BLOCKSIZE;
+    Inc( Data, i );
+    end
+  else
+    i := 0;
+
+  Decoder.SetData( Data, Size-i, CodeOffset+i, DecoderSettings );
+  {$IFDEF AssemblyTools}
+  if Assigned( Details ) then
+    begin
+    while Decoder.CanDecode do
+      begin
+      Decoder.Decode( Instruction, Details^ );
+      if ( Instruction.next_rip >= Offset ) then
+        begin
+        result := Instruction.next_rip-CodeOffset;
+        Break;
+        end;
+      end;
+    end
+  else
+  {$ENDIF AssemblyTools}
+    begin
+    begin
+    while Decoder.CanDecode do
+      begin
+      Decoder.Decode( Instruction );
+      if ( Instruction.next_rip >= Offset ) then
+        begin
+        result := Instruction.next_rip-CodeOffset;
+        Break;
+        end;
+      end;
+    end;
+    end;
+end;
+
+function TIced.FindInstruction( Data : TMemoryStream; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal;
+begin
+  if NOT Assigned( Data ) then
+    begin
+    result := 0;
+    Exit;
+    end;
+  result := FindInstruction( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Data.Size-Data.Position, Offset, CodeOffset, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings );
+end;
+
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 {$IFDEF TEST_FUNCTIONS}
 function Test( StrL : TStringList ) : Boolean;
@@ -5058,7 +5735,7 @@ end;
 const
   HEXBYTES_COLUMN_BYTE_LENGTH = 16; // 30;
 
-function Test_Decode( Data : PByte; Size : Cardinal; RIP : UInt64; Output : TStringList; FormatterType : TIcedFormatterType = ftMasm;
+function Test_Decode( Data : PByte; Size : Cardinal; RIP : UInt64; AOutput : TStringList; FormatterType : TIcedFormatterType = ftMasm;
                       SymbolResolver : TSymbolResolverCallback = nil;
                       FormatterOptionsProviderCallback : TFormatterOptionsProviderCallback = nil;
                       FormatterOutputCallback : TFormatterOutputCallback = nil;
@@ -5080,9 +5757,9 @@ var
   i             : Integer;
 begin
   result := False;
-  if NOT Assigned( Output ) then
+  if NOT Assigned( AOutput ) then
     Exit;
-  Output.Clear;
+  AAOutput.Clear;
 
   Iced.Decoder.SetData( Data, Size, RIP, doNONE );
   Iced.Formatter.FormatterType   := FormatterType;
@@ -5112,7 +5789,7 @@ begin
       if Assigned( FormatterOutputCallback ) then
         Iced.Formatter.Format( Instruction );
       Iced.Formatter.Format( Instruction, tOutput, Length( tOutput ) );
-      Output.Add( S + String( tOutput ) );
+      AAOutput.Add( S + String( tOutput ) );
       end;
 
     if DecodeInfos then
@@ -5128,11 +5805,11 @@ begin
 
       if Infos then
         begin
-        Output.Add( '    OpCode: ' + Instruction.OpCodeInfo_OpCodeString );
-        Output.Add( '    Instruction: ' + Instruction.OpCodeInfo_InstructionString );
-        Output.Add( '    Encoding: ' + TEncodingKind_String[ Integer( Instruction.Encoding ) ] );
-        Output.Add( '    Mnemonic: ' + TMnemonic_String[ Integer( Instruction.Mnemonic ) ] );
-        Output.Add( '    Code: ' + TCode_String[ Integer( Instruction.code ) ] );
+        AAOutput.Add( '    OpCode: ' + Instruction.OpCodeInfo_OpCodeString );
+        AAOutput.Add( '    Instruction: ' + Instruction.OpCodeInfo_InstructionString );
+        AAOutput.Add( '    Encoding: ' + TEncodingKind_String[ Integer( Instruction.Encoding ) ] );
+        AAOutput.Add( '    Mnemonic: ' + TMnemonic_String[ Integer( Instruction.Mnemonic ) ] );
+        AAOutput.Add( '    Code: ' + TCode_String[ Integer( Instruction.code ) ] );
         end;
 
       CPUIDFeatures := Instruction.CPUIDFeatures;
@@ -5146,9 +5823,9 @@ begin
           else
             S := TCPUidFeature_String[ Integer( CPUIDFeatures.Entries[ i ] ) ];
           end;
-        Output.Add( '    CpuidFeature: ' + S );
+        AAOutput.Add( '    CpuidFeature: ' + S );
 
-        Output.Add( '    FlowControl: ' + TFlowControl_String[ Integer( Instruction.FlowControl ) ] );
+        AAOutput.Add( '    FlowControl: ' + TFlowControl_String[ Integer( Instruction.FlowControl ) ] );
         end;
 
       FPU_Info := Instruction.FPU_StackIncrementInfo;
@@ -5157,25 +5834,25 @@ begin
         if FPU_Info.writes_top then
           begin
           if ( FPU_Info.increment = 0 ) then
-            Output.Add( '    FPU TOP: the instruction overwrites TOP' )
+            AOutput.Add( '    FPU TOP: the instruction overwrites TOP' )
           else
-            Output.Add( Format( '    FPU TOP inc: %d', [ FPU_Info.increment ] ) );
+            AOutput.Add( Format( '    FPU TOP inc: %d', [ FPU_Info.increment ] ) );
 
           if FPU_Info.conditional then
-            Output.Add( '    FPU TOP cond write: true' )
+            AOutput.Add( '    FPU TOP cond write: true' )
           else
-            Output.Add( '    FPU TOP cond write: false' );
+            AOutput.Add( '    FPU TOP cond write: false' );
           end;
 
         if ( Offsets.displacement_size <> 0 ) then
-          Output.Add( Format( '    Displacement offset = %d, size = %d', [ Offsets.displacement_offset, Offsets.displacement_size ] ) );
+          AOutput.Add( Format( '    Displacement offset = %d, size = %d', [ Offsets.displacement_offset, Offsets.displacement_size ] ) );
         if ( Offsets.immediate_size <> 0 ) then
-          Output.Add( Format( '    Immediate offset = %d, size = %d', [ Offsets.immediate_offset, Offsets.immediate_size ] ) );
+          AOutput.Add( Format( '    Immediate offset = %d, size = %d', [ Offsets.immediate_offset, Offsets.immediate_size ] ) );
         if ( Offsets.immediate_size2 <> 0 ) then
-          Output.Add( Format( '    Immediate #2 offset = %d, size = %d', [ Offsets.immediate_offset2, Offsets.immediate_size2 ] ) );
+          AOutput.Add( Format( '    Immediate #2 offset = %d, size = %d', [ Offsets.immediate_offset2, Offsets.immediate_size2 ] ) );
 
         if Instruction.IsStackInstruction then
-          Output.Add( Format( '    SP Increment: %d', [ Instruction.StackPointerIncrement ] ) );
+          AOutput.Add( Format( '    SP Increment: %d', [ Instruction.StackPointerIncrement ] ) );
         end;
 
       CC := Instruction.ConditionCode;
@@ -5183,22 +5860,22 @@ begin
       if Infos then
         begin
         if ( CC <> cc_None ) then
-          Output.Add( Format( '    Condition code: %s', [ TConditionCode_String[ Integer( CC ) ] ] ) );
+          AOutput.Add( Format( '    Condition code: %s', [ TConditionCode_String[ Integer( CC ) ] ] ) );
 
         if ( NOT RFlags.Read.IsNone ) OR ( NOT RFlags.Written.IsNone ) OR ( NOT RFlags.Cleared.IsNone ) OR ( NOT RFlags.Set_.IsNone ) OR ( NOT RFlags.Undefined.IsNone ) OR ( NOT RFlags.Modified.IsNone ) then
           begin
           if ( NOT RFlags.Read.IsNone ) then
-            Output.Add( '    RFLAGS Read: ' + ParseRFlags( RFlags.Read ) );
+            AOutput.Add( '    RFLAGS Read: ' + ParseRFlags( RFlags.Read ) );
           if ( NOT RFlags.Written.IsNone ) then
-            Output.Add( '    RFLAGS Written: ' + ParseRFlags( RFlags.Written ) );
+            AOutput.Add( '    RFLAGS Written: ' + ParseRFlags( RFlags.Written ) );
           if ( NOT RFlags.Cleared.IsNone ) then
-            Output.Add( '    RFLAGS Cleared: ' + ParseRFlags( RFlags.Cleared ) );
+            AOutput.Add( '    RFLAGS Cleared: ' + ParseRFlags( RFlags.Cleared ) );
           if ( NOT RFlags.Set_.IsNone ) then
-            Output.Add( '    RFLAGS Set: ' + ParseRFlags( RFlags.Set_ ) );
+            AOutput.Add( '    RFLAGS Set: ' + ParseRFlags( RFlags.Set_ ) );
           if ( NOT RFlags.Undefined.IsNone ) then
-            Output.Add( '    RFLAGS Undefined: ' + ParseRFlags( RFlags.Undefined ) );
+            AOutput.Add( '    RFLAGS Undefined: ' + ParseRFlags( RFlags.Undefined ) );
           if ( NOT RFlags.Modified.IsNone ) then
-            Output.Add( '    RFLAGS Modified: ' + ParseRFlags( RFlags.Modified ) );
+            AOutput.Add( '    RFLAGS Modified: ' + ParseRFlags( RFlags.Modified ) );
           end;
         end;
 
@@ -5212,7 +5889,7 @@ begin
             begin
             C := Instruction.MemorySize;
             if ( C <> 0 ) then
-              Output.Add( '    Memory Size: ' + IntToStr( C ) );
+              AOutput.Add( '    Memory Size: ' + IntToStr( C ) );
             break;
             end;
           end;
@@ -5222,16 +5899,16 @@ begin
       if Infos then
         begin
         for i := 0 to Instruction.OPCount-1 do
-          Output.Add( Format( '    Op%dAccess: %s', [ i, TOpAccess_String[ Integer( Info.op_accesses[ i ] ) ] ] ) );
+          AOutput.Add( Format( '    Op%dAccess: %s', [ i, TOpAccess_String[ Integer( Info.op_accesses[ i ] ) ] ] ) );
 
         for i := 0 to Instruction.OpCodeInfo_OPCount-1 do
-          Output.Add( Format( '    Op%d: %s', [ i, TOpCodeOperandKind_Strings[ Integer( Instruction.OpCodeInfo_OPKind( i ) ) ] ] ) );
+          AOutput.Add( Format( '    Op%d: %s', [ i, TOpCodeOperandKind_Strings[ Integer( Instruction.OpCodeInfo_OPKind( i ) ) ] ] ) );
 
         for i := 0 to Info.used_registers.Count-1 do
-          Output.Add( Format( '    Used reg: %s:%s', [ TRegister_String[ Integer( Info.used_registers.Entries[ i ].register_ ) ], TOpAccess_String[ Integer( Info.used_registers.Entries[ i ].access ) ] ] ) );
+          AOutput.Add( Format( '    Used reg: %s:%s', [ TRegister_String[ Integer( Info.used_registers.Entries[ i ].register_ ) ], TOpAccess_String[ Integer( Info.used_registers.Entries[ i ].access ) ] ] ) );
 
         for i := 0 to Info.used_memory_locations.Count-1 do
-          Output.Add( Format( '    Used mem: %s:%s+0x%.2x:%s:%d:%s:%s:%s:%d', [
+          AOutput.Add( Format( '    Used mem: %s:%s+0x%.2x:%s:%d:%s:%s:%s:%d', [
                                                                             TRegister_String[ Integer( Info.used_memory_locations.Entries[ i ].segment ) ],
                                                                             TRegister_String[ Integer( Info.used_memory_locations.Entries[ i ].base ) ],
                                                                             Info.used_memory_locations.Entries[ i ].displacement,
@@ -5263,7 +5940,7 @@ var
   i           : Integer;
 begin
 //  if Assigned( Output ) then
-//    Output.Clear;
+//    AOutput.Clear;
 
   Iced.Decoder.SetData( Data, Size, RIP, doNONE );
 //  if LocalBuffer AND NOT BlockEncode then
@@ -5331,7 +6008,7 @@ begin
         S := S + ' ';
 
       Iced.Formatter.Format( Instruction, tOutput, Length( tOutput ) );
-      Output.Add( S + string( tOutput ) );
+      AOutput.Add( S + string( tOutput ) );
       end;
     end;
 
@@ -5372,7 +6049,7 @@ var
   C            : Cardinal;
 begin
 //  if Assigned( Output ) then
-//    Output.Clear;
+//    AOutput.Clear;
 
   // All created instructions get an IP of 0. The label id is just an IP.
   // The branch instruction's *target* IP should be equal to the IP of the
@@ -5460,12 +6137,12 @@ begin
         S := S + ' ';
 
       Iced.Formatter.Format( Instruction, tOutput, Length( tOutput ) );
-      Output.Add( S + String( tOutput ) );
+      AOutput.Add( S + String( tOutput ) );
       end;
 
     Instruction := TInstruction.with_declare_byte( raw_data );
     Iced.Formatter.Format( Instruction, tOutput, Length( tOutput ) );
-    Output.Add( S + String( tOutput ) );
+    AOutput.Add( S + String( tOutput ) );
     end;
 
   Iced.BlockEncoder.Clear;
