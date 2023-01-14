@@ -3061,6 +3061,7 @@ begin
   {$UNDEF section_InitVar}
 end;
 
+{$WARNINGS OFF}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Macros~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instruction
@@ -3120,22 +3121,22 @@ end;
 
 function Instruction_IsConditionalJump( var Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
 begin
-  result := ( Instruction.Code = Je_rel8_64 )  OR  ( Instruction.Code = Jp_rel8_16 )  OR ( Instruction.Code = Jg_rel8_32 ) OR ( Instruction.Code = Jle_rel16 )    OR ( Instruction.Code = Jle_rel32_32 ) OR ( Instruction.Code = Jle_rel32_64 ) OR
-            ( Instruction.Code = Jne_rel8_16 ) OR  ( Instruction.Code = Jp_rel8_32 )  OR ( Instruction.Code = Jg_rel8_64 ) OR ( Instruction.Code = Jg_rel16 )     OR ( Instruction.Code = Jg_rel32_32 )  OR ( Instruction.Code = Jg_rel32_64 )  OR
-            ( Instruction.Code = Jne_rel8_32 ) OR  ( Instruction.Code = Jp_rel8_64 )  OR ( Instruction.Code = Jo_rel16 )   OR ( Instruction.Code = Jo_rel32_32 )  OR ( Instruction.Code = Jo_rel32_64 )  OR
-            ( Instruction.Code = Jne_rel8_64 ) OR  ( Instruction.Code = Jnp_rel8_16 ) OR ( Instruction.Code = Jno_rel16 )  OR ( Instruction.Code = Jno_rel32_32 ) OR ( Instruction.Code = Jno_rel32_64 ) OR
-            ( Instruction.Code = Jbe_rel8_16 ) OR  ( Instruction.Code = Jnp_rel8_32 ) OR ( Instruction.Code = Jb_rel16 )   OR ( Instruction.Code = Jb_rel32_32 )  OR ( Instruction.Code = Jb_rel32_64 )  OR
-            ( Instruction.Code = Jbe_rel8_32 ) OR  ( Instruction.Code = Jnp_rel8_64 ) OR ( Instruction.Code = Jae_rel16 )  OR ( Instruction.Code = Jae_rel32_32 ) OR ( Instruction.Code = Jae_rel32_64 ) OR
-            ( Instruction.Code = Jbe_rel8_64 ) OR  ( Instruction.Code = Jl_rel8_16 )  OR ( Instruction.Code = Je_rel16 )   OR ( Instruction.Code = Je_rel32_32 )  OR ( Instruction.Code = Je_rel32_64 )  OR
-            ( Instruction.Code = Ja_rel8_16 )  OR  ( Instruction.Code = Jl_rel8_32 )  OR ( Instruction.Code = Jne_rel16 )  OR ( Instruction.Code = Jne_rel32_32 ) OR ( Instruction.Code = Jne_rel32_64 ) OR
-            ( Instruction.Code = Ja_rel8_32 )  OR  ( Instruction.Code = Jl_rel8_64 )  OR ( Instruction.Code = Jbe_rel16 )  OR ( Instruction.Code = Jbe_rel32_32 ) OR ( Instruction.Code = Jbe_rel32_64 ) OR
-            ( Instruction.Code = Ja_rel8_64 )  OR  ( Instruction.Code = Jge_rel8_16 ) OR ( Instruction.Code = Ja_rel16 )   OR ( Instruction.Code = Ja_rel32_32 )  OR ( Instruction.Code = Ja_rel32_64 )  OR
-            ( Instruction.Code = Js_rel8_16 )  OR  ( Instruction.Code = Jge_rel8_32 ) OR ( Instruction.Code = Js_rel16 )   OR ( Instruction.Code = Js_rel32_32 )  OR ( Instruction.Code = Js_rel32_64 )  OR
-            ( Instruction.Code = Js_rel8_32 )  OR  ( Instruction.Code = Jge_rel8_64 ) OR ( Instruction.Code = Jns_rel16 )  OR ( Instruction.Code = Jns_rel32_32 ) OR ( Instruction.Code = Jns_rel32_64 ) OR
-            ( Instruction.Code = Js_rel8_64 )  OR  ( Instruction.Code = Jle_rel8_16 ) OR ( Instruction.Code = Jp_rel16 )   OR ( Instruction.Code = Jp_rel32_32 )  OR ( Instruction.Code = Jp_rel32_64 )  OR
-            ( Instruction.Code = Jns_rel8_16 ) OR  ( Instruction.Code = Jle_rel8_32 ) OR ( Instruction.Code = Jnp_rel16 )  OR ( Instruction.Code = Jnp_rel32_32 ) OR ( Instruction.Code = Jnp_rel32_64 ) OR
-            ( Instruction.Code = Jns_rel8_32 ) OR  ( Instruction.Code = Jle_rel8_64 ) OR ( Instruction.Code = Jl_rel16 )   OR ( Instruction.Code = Jl_rel32_32 )  OR ( Instruction.Code = Jl_rel32_64 )  OR
-            ( Instruction.Code = Jns_rel8_64 ) OR  ( Instruction.Code = Jg_rel8_16 )  OR ( Instruction.Code = Jge_rel16 )  OR ( Instruction.Code = Jge_rel32_32 ) OR ( Instruction.Code = Jge_rel32_64 );
+  result := ( Instruction.Code = Je_rel8_64 )  OR  ( Instruction.Code = Jp_rel8_16 )  OR ( Instruction.Code = Jg_rel8_32 ) OR ( Instruction.Code = Jle_rel16 )    OR ( Instruction.Code = Jle_rel32_32 ) OR ( Instruction.Code = Jle_rel32_64 ) OR ( Instruction.Code = Jnp_rel16 ) OR
+            ( Instruction.Code = Jne_rel8_16 ) OR  ( Instruction.Code = Jp_rel8_32 )  OR ( Instruction.Code = Jg_rel8_64 ) OR ( Instruction.Code = Jg_rel16 )     OR ( Instruction.Code = Jg_rel32_32 )  OR ( Instruction.Code = Jg_rel32_64 )  OR ( Instruction.Code = Jl_rel16 )  OR
+            ( Instruction.Code = Jne_rel8_32 ) OR  ( Instruction.Code = Jp_rel8_64 )  OR ( Instruction.Code = Jo_rel16 )   OR ( Instruction.Code = Jo_rel32_32 )  OR ( Instruction.Code = Jo_rel32_64 )  OR ( Instruction.Code = Jo_rel8_16 )   OR ( Instruction.Code = Jge_rel16 ) OR
+            ( Instruction.Code = Jne_rel8_64 ) OR  ( Instruction.Code = Jnp_rel8_16 ) OR ( Instruction.Code = Jno_rel16 )  OR ( Instruction.Code = Jno_rel32_32 ) OR ( Instruction.Code = Jno_rel32_64 ) OR ( Instruction.Code = Jo_rel8_32 )   OR
+            ( Instruction.Code = Jbe_rel8_16 ) OR  ( Instruction.Code = Jnp_rel8_32 ) OR ( Instruction.Code = Jb_rel16 )   OR ( Instruction.Code = Jb_rel32_32 )  OR ( Instruction.Code = Jb_rel32_64 )  OR ( Instruction.Code = Jo_rel8_64 )   OR
+            ( Instruction.Code = Jbe_rel8_32 ) OR  ( Instruction.Code = Jnp_rel8_64 ) OR ( Instruction.Code = Jae_rel16 )  OR ( Instruction.Code = Jae_rel32_32 ) OR ( Instruction.Code = Jae_rel32_64 ) OR ( Instruction.Code = Jno_rel8_16 )  OR
+            ( Instruction.Code = Jbe_rel8_64 ) OR  ( Instruction.Code = Jl_rel8_16 )  OR ( Instruction.Code = Je_rel16 )   OR ( Instruction.Code = Je_rel32_32 )  OR ( Instruction.Code = Je_rel32_64 )  OR ( Instruction.Code = Jno_rel8_32 )  OR
+            ( Instruction.Code = Ja_rel8_16 )  OR  ( Instruction.Code = Jl_rel8_32 )  OR ( Instruction.Code = Jne_rel16 )  OR ( Instruction.Code = Jne_rel32_32 ) OR ( Instruction.Code = Jne_rel32_64 ) OR ( Instruction.Code = Jno_rel8_64 )  OR
+            ( Instruction.Code = Ja_rel8_32 )  OR  ( Instruction.Code = Jl_rel8_64 )  OR ( Instruction.Code = Jbe_rel16 )  OR ( Instruction.Code = Jbe_rel32_32 ) OR ( Instruction.Code = Jbe_rel32_64 ) OR ( Instruction.Code = Jb_rel8_16 )   OR
+            ( Instruction.Code = Ja_rel8_64 )  OR  ( Instruction.Code = Jge_rel8_16 ) OR ( Instruction.Code = Ja_rel16 )   OR ( Instruction.Code = Ja_rel32_32 )  OR ( Instruction.Code = Ja_rel32_64 )  OR ( Instruction.Code = Jb_rel8_32 )   OR
+            ( Instruction.Code = Js_rel8_16 )  OR  ( Instruction.Code = Jge_rel8_32 ) OR ( Instruction.Code = Js_rel16 )   OR ( Instruction.Code = Js_rel32_32 )  OR ( Instruction.Code = Js_rel32_64 )  OR ( Instruction.Code = Jb_rel8_64 )   OR
+            ( Instruction.Code = Js_rel8_32 )  OR  ( Instruction.Code = Jge_rel8_64 ) OR ( Instruction.Code = Jns_rel16 )  OR ( Instruction.Code = Jns_rel32_32 ) OR ( Instruction.Code = Jns_rel32_64 ) OR ( Instruction.Code = Jae_rel8_16 )  OR
+            ( Instruction.Code = Js_rel8_64 )  OR  ( Instruction.Code = Jle_rel8_16 ) OR ( Instruction.Code = Jp_rel16 )   OR ( Instruction.Code = Jp_rel32_32 )  OR ( Instruction.Code = Jp_rel32_64 )  OR ( Instruction.Code = Jae_rel8_32 )  OR
+            ( Instruction.Code = Jns_rel8_16 ) OR  ( Instruction.Code = Jle_rel8_32 ) OR ( Instruction.Code = Jnp_rel16 )  OR ( Instruction.Code = Jnp_rel32_32 ) OR ( Instruction.Code = Jnp_rel32_64 ) OR ( Instruction.Code = Jae_rel8_64 )  OR
+            ( Instruction.Code = Jns_rel8_32 ) OR  ( Instruction.Code = Jle_rel8_64 ) OR ( Instruction.Code = Jl_rel16 )   OR ( Instruction.Code = Jl_rel32_32 )  OR ( Instruction.Code = Jl_rel32_64 )  OR ( Instruction.Code = Je_rel8_16 )   OR
+            ( Instruction.Code = Jns_rel8_64 ) OR  ( Instruction.Code = Jg_rel8_16 )  OR ( Instruction.Code = Jge_rel16 )  OR ( Instruction.Code = Jge_rel32_32 ) OR ( Instruction.Code = Jge_rel32_64 ) OR ( Instruction.Code = Je_rel8_32 );
 end;
 
 function Instruction_IsCall( var Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
@@ -4432,6 +4433,7 @@ begin
   if NOT Instruction_With_Declare_QWord_2( result, Q0, Q1 ) then
     FillChar( result, SizeOf( result ), 0 );
 end;
+{$WARNINGS ON}
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Redirects~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

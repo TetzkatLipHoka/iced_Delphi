@@ -14,11 +14,15 @@ unit uIced;
 
 interface
 
+{$WARN UNSAFE_CODE OFF}
 {$WARN COMPARING_SIGNED_UNSIGNED OFF}
 
 {$IF CompilerVersion >= 22}
   {$LEGACYIFEND ON}
 {$IFEND}
+
+{$WARN UNSAFE_TYPE OFF}
+{$WARN UNSAFE_CAST OFF}
 
 {.$DEFINE DECODER_LOCAL_POSITION} // Buffer-Position is saved in Local-Variable, updated each Decode
 
@@ -27,6 +31,7 @@ interface
 
 uses
   Classes, SysUtils,
+  {$IFNDEF UNICODE}SynUnicode,{$ENDIF}  
   {$IFDEF AssemblyTools}uAssemblyTools,{$ENDIF}
   uIced.Imports, uIced.Types;
 
@@ -249,6 +254,7 @@ type
     fOutputHandle    : Pointer;
     {$IFDEF AssemblyTools}
     fSymbolHandler   : TSymbolHandler;
+    fShowSymbols     : Boolean;
     {$ENDIF AssemblyTools}
     procedure   CreateHandle( KeepConfiguration : Boolean = False );
     function    GetHandle : Pointer;
@@ -262,6 +268,7 @@ type
 
     {$IFDEF AssemblyTools}
     procedure   SetSymbolHandler( Value : TSymbolHandler );
+    procedure   SetShowSymbols( Value : Boolean );
     {$ENDIF AssemblyTools}
 
     // Options
@@ -424,6 +431,7 @@ type
 
     {$IFDEF AssemblyTools}
     property    SymbolHandler                   : TSymbolHandler                     read fSymbolHandler                    write SetSymbolHandler;
+    property    ShowSymbols                     : Boolean                            read fShowSymbols                      write SetShowSymbols;
     {$ENDIF AssemblyTools}
 
     // Options
@@ -1337,6 +1345,11 @@ begin
   fFormatterOutput := nil;
   fOutputHandle    := nil;
 
+  {$IFDEF AssemblyTools}
+  fSymbolHandler   := nil;
+  fShowSymbols     := True;
+  {$ENDIF AssemblyTools}
+
   CreateHandle;
 end;
 
@@ -1353,15 +1366,18 @@ end;
 procedure TIcedFormatter.CreateHandle( KeepConfiguration : Boolean = False );
 var
   SymbolResolver : TSymbolResolverCallback;
-  Options        : TIcedFormatterSettings;
+  tOptions       : TIcedFormatterSettings;
 begin
-  if Assigned( fHandle ) then
-    IcedFreeMemory( fHandle );
+  if NOT Assigned( self ) then
+    Exit;
   if NOT uIced.Imports.IsInitDLL then
     Exit;
 
+  if Assigned( fHandle ) then
+    IcedFreeMemory( fHandle );
+
   {$IFDEF AssemblyTools}
-  if Assigned( fSymbolResolver ) OR Assigned( fSymbolHandler ) then
+  if fShowSymbols AND ( Assigned( fSymbolResolver ) OR Assigned( fSymbolHandler ) ) then
     SymbolResolver := SymbolResolverCallback
   else
   {$ENDIF}
@@ -1380,15 +1396,17 @@ begin
 
   if KeepConfiguration then
     begin
-    Options  := fOptions;
+    tOptions  := fOptions;
     fOptions := GetOptions;
-    SetOptions( Options );
+    SetOptions( tOptions );
     end
   else
+    begin
     fOptions := GetOptions;
 
-  if ( fType = ftCapstone ) then
-    SetCapstoneOptions;
+    if ( fType = ftCapstone ) then
+      SetCapstoneOptions;
+    end;
 end;
 
 procedure TIcedFormatter.DefaultSettings;
@@ -3306,7 +3324,7 @@ end;
 
 function TIcedFormatter.GetNumberBase : TNumberBase;
 begin
-  result := Hexadecimal;
+  result := nbHexadecimal;
   if NOT Assigned( self ) then
     Exit;
   if NOT Assigned( fHandle ) then
@@ -3927,6 +3945,21 @@ begin
   fSymbolHandler := Value;
   CreateHandle( True{KeepConfiguration} );
 end;
+
+procedure TIcedFormatter.SetShowSymbols( Value : Boolean );
+begin
+  if NOT Assigned( self ) then
+    Exit;
+  if ( fShowSymbols = Value ) then
+    Exit;
+  if ( fType in [ ftFast, ftSpecialized ] ) then
+    Exit;
+
+  fShowSymbols := Value;
+  if Value AND NOT Assigned( fSymbolHandler ) then
+    Exit;
+  CreateHandle( True{KeepConfiguration} );
+end;
 {$ENDIF AssemblyTools}
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -4030,7 +4063,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -4067,7 +4100,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -4109,7 +4142,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -4138,7 +4171,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -4190,7 +4223,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -4229,7 +4262,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -4273,7 +4306,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -4304,7 +4337,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -4663,7 +4696,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -4747,7 +4780,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -4831,7 +4864,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -4896,7 +4929,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -4979,7 +5012,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -5065,7 +5098,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -5151,7 +5184,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -5218,7 +5251,7 @@ begin
         S := '';
         for i := 0 to Instruction.len-1 do
           begin
-          S := S + IntToHex( Data^ );
+          S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
           Inc( Data );
           end;
         StrL_Hex.Add( S );
@@ -5607,7 +5640,6 @@ var
 begin
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   result := 0;
-  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
   if NOT Assigned( self ) then
     Exit;
   if NOT Assigned( Data ) OR ( Size = 0 ) then
@@ -5657,16 +5689,19 @@ begin
       end;
     end;
     end;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
 end;
 
 function TIced.FindInstruction( Data : TMemoryStream; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal;
 begin
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   if NOT Assigned( Data ) then
     begin
     result := 0;
     Exit;
     end;
   result := FindInstruction( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Data.Size-Data.Position, Offset, CodeOffset, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings );
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118  
 end;
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

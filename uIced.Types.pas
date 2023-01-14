@@ -328,6 +328,7 @@ interface
   {$LEGACYIFEND ON}
   {$WARN DUPLICATE_CTOR_DTOR OFF}
 {$IFEND}
+{$WARN UNSAFE_TYPE OFF}
 
 {$DEFINE INCLUDE_STRINGS} // ~500kb DCU
 
@@ -371,11 +372,11 @@ const
 //  TDecoderOptions = (
     // No option is enabled
     doNONE = $00000000{,};
-    // Disable some checks for invalid encodings of instructions{,}; eg. most instructions can't use a `LOCK` prefix so if one is found{,}; they're decoded as [`Code::INVALID`] unless this option is enabled.
+    // Disable some checks for invalid encodings of instructions, eg. most instructions can't use a `LOCK` prefix so if one is found, they're decoded as [`Code::INVALID`] unless this option is enabled.
     //
     // [`Code::INVALID`]: enum.Code.html#variant.INVALID
     doNO_INVALID_CHECK = $00000001{,};
-    // AMD decoder: allow 16-bit branch/ret instructions in 64-bit mode{,}; no `o64 CALL/JMP FAR [mem]{,}; o64 LSS/LFS/LGS`{,}; `UD0` has no modr/m byte{,}; decode `LOCK MOV CR`. The AMD decoder can still decode Intel instructions.
+    // AMD decoder: allow 16-bit branch/ret instructions in 64-bit mode, no `o64 CALL/JMP FAR [mem], o64 LSS/LFS/LGS`, `UD0` has no modr/m byte, decode `LOCK MOV CR`. The AMD decoder can still decode Intel instructions.
     doAMD = $00000002{,};
     // Decode opcodes `0F0D` and `0F18-0F1F` as reserved-nop instructions (eg. [`Code::Reservednop_rm32_r32_0F1D`])
     //
@@ -397,25 +398,25 @@ const
     doLOADALL386 = $00000200{,};
     // Decode `CL1INVMB`
     doCL1INVMB = $00000400{,};
-    // Decode `MOV r32{,};tr` and `MOV tr{,};r32`
+    // Decode `MOV r32,tr` and `MOV tr,r32`
     doMOV_TR = $00000800{,};
     // Decode `JMPE` instructions
     doJMPE = $00001000{,};
-    // Don't decode `PAUSE`{,}; decode `NOP` instead
+    // Don't decode `PAUSE`, decode `NOP` instead
     doNO_PAUSE = $00002000{,};
-    // Don't decode `WBNOINVD`{,}; decode `WBINVD` instead
+    // Don't decode `WBNOINVD`, decode `WBINVD` instead
     doNO_WBNOINVD = $00004000{,};
     // Decode undocumented Intel `RDUDBG` and `WRUDBG` instructions
     doUDBG = $00008000{,};
-    // Don't decode `TZCNT`{,}; decode `BSF` instead
+    // Don't decode `TZCNT`, decode `BSF` instead
     doNO_MPFX_0FBC = $00010000{,};
-    // Don't decode `LZCNT`{,}; decode `BSR` instead
+    // Don't decode `LZCNT`, decode `BSR` instead
     doNO_MPFX_0FBD = $00020000{,};
     // Don't decode `LAHF` and `SAHF` in 64-bit mode
     doNO_LAHF_SAHF_64 = $00040000{,};
     // Decode `MPX` instructions
     doMPX = $00080000{,};
-    // Decode most Cyrix instructions: `FPU`{,}; `EMMI`{,}; `SMM`{,}; `DDI`
+    // Decode most Cyrix instructions: `FPU`, `EMMI`, `SMM`, `DDI`
     doCYRIX = $00100000{,};
     // Decode Cyrix `SMINT 0F7E` (Cyrix 6x86 or earlier)
     doCYRIX_SMINT_0F7E = $00200000{,};
@@ -50128,7 +50129,7 @@ type
     // * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
     // * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
     // * `segment_prefix`: Segment override or [`Register::None`]
-    constructor New( Base: TRegister; Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister );
+    constructor New( ABase: TRegister; AIndex: TRegister; AScale: Cardinal; ADisplacement: Int64; ADisplSize : Cardinal; AIsBroadcast : Boolean; ASegmentPrefix : TRegister );
 
     // # Arguments
     // * `base`: Base register or [`Register::None`]
@@ -50136,7 +50137,7 @@ type
     // * `scale`: Index register scale (1, 2, 4, or 8)
     // * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
     // * `segment_prefix`: Segment override or [`Register::None`]
-    constructor With_Base_Index_Scale_Bcst_Seg( Base: TRegister; Index: TRegister; Scale: Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister );
+    constructor With_Base_Index_Scale_Bcst_Seg( ABase: TRegister; AIndex: TRegister; AScale: Cardinal; AIsBroadcast : Boolean; ASegmentPrefix : TRegister );
 
     // # Arguments
     //
@@ -50145,7 +50146,7 @@ type
     // * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
     // * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
     // * `segment_prefix`: Segment override or [`Register::None`]
-    constructor With_Base_Displ_Size_Bcst_Seg( Base: TRegister; Displacement: Int64; DisplSize : Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister );
+    constructor With_Base_Displ_Size_Bcst_Seg( ABase: TRegister; ADisplacement: Int64; ADisplSize : Cardinal; AIsBroadcast : Boolean; ASegmentPrefix : TRegister );
 
     // # Arguments
     // * `index`: Index register or [`Register::None`]
@@ -50154,14 +50155,14 @@ type
     // * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
     // * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
     // * `segment_prefix`: Segment override or [`Register::None`]
-    constructor With_Index_Scale_Displ_Size_Bcst_Seg( Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister );
+    constructor With_Index_Scale_Displ_Size_Bcst_Seg( AIndex: TRegister; AScale: Cardinal; ADisplacement: Int64; ADisplSize : Cardinal; AIsBroadcast : Boolean; ASegmentPrefix : TRegister );
 
     // # Arguments
     // * `base`: Base register or [`Register::None`]
     // * `displacement`: Memory displacement
     // * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
     // * `segment_prefix`: Segment override or [`Register::None`]
-    constructor With_Base_Displ_Bcst_Seg( Base: TRegister; Displacement: Int64; IsBroadcast : Boolean; SegmentPrefix : TRegister );
+    constructor With_Base_Displ_Bcst_Seg( ABase: TRegister; ADisplacement: Int64; AIsBroadcast : Boolean; ASegmentPrefix : TRegister );
 
     // # Arguments
     // * `base`: Base register or [`Register::None`]
@@ -50169,45 +50170,45 @@ type
     // * `scale`: Index register scale (1, 2, 4, or 8)
     // * `displacement`: Memory displacement
     // * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
-    constructor With_Base_Index_Scale_DisplSize( Base: TRegister; Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal );
+    constructor With_Base_Index_Scale_DisplSize( ABase: TRegister; AIndex: TRegister; AScale: Cardinal; ADisplacement: Int64; ADisplSize : Cardinal );
 
     // # Arguments
     // * `base`: Base register or [`Register::None`]
     // * `index`: Index register or [`Register::None`]
     // * `scale`: Index register scale (1, 2, 4, or 8)
-    constructor With_Base_Index_Scale( Base: TRegister; Index: TRegister; Scale: Cardinal );
+    constructor With_Base_Index_Scale( ABase: TRegister; AIndex: TRegister; AScale: Cardinal );
 
     // # Arguments
     // * `base`: Base register or [`Register::None`]
     // * `index`: Index register or [`Register::None`]
-    constructor With_Base_Index( Base: TRegister; Index: TRegister );
+    constructor With_Base_Index( ABase: TRegister; AIndex: TRegister );
 
     // # Arguments
     // * `base`: Base register or [`Register::None`]
     // * `displacement`: Memory displacement
     // * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
-    constructor With_Base_Displ_Size( Base: TRegister; Displacement: Int64; DisplSize : Cardinal );
+    constructor With_Base_Displ_Size( ABase: TRegister; ADisplacement: Int64; ADisplSize : Cardinal );
 
     // # Arguments
     // * `index`: Index register or [`Register::None`]
     // * `scale`: Index register scale (1, 2, 4, or 8)
     // * `displacement`: Memory displacement
     // * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
-    constructor With_Index_Scale_Displ_Size( Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal );
+    constructor With_Index_Scale_Displ_Size( AIndex: TRegister; AScale: Cardinal; ADisplacement: Int64; ADisplSize : Cardinal );
 
     // # Arguments
     // * `base`: Base register or [`Register::None`]
     // * `displacement`: Memory displacement
-    constructor With_Base_Displ( Base: TRegister; Displacement: Int64 );
+    constructor With_Base_Displ( ABase: TRegister; ADisplacement: Int64 );
 
     // # Arguments
     // * `base`: Base register or [`Register::None`]
-    constructor With_Base( Base: TRegister );
+    constructor With_Base( ABase: TRegister );
 
     // # Arguments
     // * `displacement`: Memory displacement
     // * `displ_size`: 2 (16-bit), 4 (32-bit) or 8 (64-bit)
-    constructor With_Displ( Displacement: Int64; DisplSize : Cardinal );
+    constructor With_Displ( ADisplacement: Int64; ADisplSize : Cardinal );
   end;
 
   TRFlag = {$IFDEF UNICODE}packed record{$ELSE}object{$ENDIF}
@@ -50409,60 +50410,60 @@ type
     function  OpCodeInfo_OP3Kind : TOpCodeOperandKind; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  OpCodeInfo_OP4Kind : TOpCodeOperandKind; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  OpCodeInfo_OPKind( operand : Cardinal ) : TOpCodeOperandKind; {$IF CompilerVersion >= 23}inline;{$IFEND}
-    function  OpCodeInfo_OPKinds( var OPKinds : TOPCodeOperandKindArray ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
+    function  OpCodeInfo_OPKinds( var AOPKinds : TOPCodeOperandKindArray ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  OpCodeInfo_IsAvailableInMode( Bitness : Cardinal ) : Boolean; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  OpCodeInfo_IsAvailableInMode( Bitness : TIcedBitness ) : Boolean; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  OpCodeInfo_OpCodeString : String; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  OpCodeInfo_InstructionString : String; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  VirtualAddress( Callback : TVirtualAddressResolverCallback; Operand : Cardinal = 0; Index : NativeUInt = 0; UserData : Pointer = nil ) : UInt64; {$IF CompilerVersion >= 23}inline;{$IFEND}
 
-    constructor With_( Code : TCode );
-    constructor With1( Code : TCode; Register_ : TRegister ); overload;
-    constructor With1( Code : TCode; Immediate : Integer ); overload;
-    constructor With1( Code : TCode; Immediate : Cardinal ); overload;
-    constructor With1( Code : TCode; Memory : TMemoryOperand ); overload;
-    constructor With2( Code : TCode; Register1 : TRegister; Register2 : TRegister ); overload;
-    constructor With2( Code : TCode; Register_ : TRegister; Immediate : Integer ); overload;
-    constructor With2( Code : TCode; Register_ : TRegister; Immediate : Cardinal ); overload;
-    constructor With2( Code : TCode; Register_ : TRegister; Immediate : Int64 ); overload;
-    constructor With2( Code : TCode; Register_ : TRegister; Immediate : UInt64 ); overload;
-    constructor With2( Code : TCode; Register_ : TRegister; Memory : TMemoryOperand ); overload;
-    constructor With2( Code : TCode; Immediate : Integer; Register_ : TRegister ); overload;
-    constructor With2( Code : TCode; Immediate : Cardinal; Register_ : TRegister ); overload;
-    constructor With2( Code : TCode; Immediate1 : Integer; Immediate2 : Integer ); overload;
-    constructor With2( Code : TCode; Immediate1 : Cardinal; Immediate2 : Cardinal ); overload;
-    constructor With2( Code : TCode; Memory : TMemoryOperand; Register_ : TRegister ); overload;
-    constructor With2( Code : TCode; Memory : TMemoryOperand; Immediate : Integer ); overload;
-    constructor With2( Code : TCode; Memory : TMemoryOperand; Immediate : Cardinal ); overload;
-    constructor With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister ); overload;
-    constructor With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate : Integer ); overload;
-    constructor With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate : Cardinal ); overload;
-    constructor With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand ); overload;
-    constructor With3( Code : TCode; Register_ : TRegister; Immediate1 : Integer; Immediate2 : Integer ); overload;
-    constructor With3( Code : TCode; Register_ : TRegister; Immediate1 : Cardinal; Immediate2 : Cardinal ); overload;
-    constructor With3( Code : TCode; Register1 : TRegister; Memory : TMemoryOperand; Register2 : TRegister ); overload;
-    constructor With3( Code : TCode; Register1 : TRegister; Memory : TMemoryOperand; Immediate : Integer ); overload;
-    constructor With3( Code : TCode; Register_ : TRegister; Memory : TMemoryOperand; Immediate : Cardinal ); overload;
-    constructor With3( Code : TCode; Memory : TMemoryOperand; Register1 : TRegister; Register2 : TRegister ); overload;
-    constructor With3( Code : TCode; Memory : TMemoryOperand; Register_ : TRegister; Immediate : Integer ); overload;
-    constructor With3( Code : TCode; Memory : TMemoryOperand; Register_ : TRegister; Immediate : Cardinal ); overload;
-    constructor With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Register4 : TRegister ); overload;
-    constructor With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Immediate : Integer ); overload;
-    constructor With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Immediate : Cardinal ); overload;
-    constructor With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Memory : TMemoryOperand ); overload;
-    constructor With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate1 : Integer; Immediate2 : Integer ); overload;
-    constructor With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate1 : Cardinal; Immediate2 : Cardinal ); overload;
-    constructor With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Register3 : TRegister ); overload;
-    constructor With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Immediate : Integer ); overload;
-    constructor With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Immediate : Cardinal ); overload;
-    constructor With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Register4 : TRegister; Immediate : Integer ); overload;
-    constructor With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Register4 : TRegister; Immediate : Cardinal ); overload;
-    constructor With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Memory : TMemoryOperand; Immediate : Integer ); overload;
-    constructor With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Memory : TMemoryOperand; Immediate : Cardinal ); overload;
-    constructor With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Register3 : TRegister; Immediate : Integer ); overload;
-    constructor With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Register3 : TRegister; Immediate : Cardinal ); overload;
-    constructor With_Branch( Code : TCode; Target : UInt64 );
-    constructor With_Far_Branch( Code : TCode; Selector : Word; Offset : Cardinal );
+    constructor With_( ACode : TCode );
+    constructor With1( ACode : TCode; ARegister_ : TRegister ); overload;
+    constructor With1( ACode : TCode; AImmediate : Integer ); overload;
+    constructor With1( ACode : TCode; AImmediate : Cardinal ); overload;
+    constructor With1( ACode : TCode; AMemory : TMemoryOperand ); overload;
+    constructor With2( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister ); overload;
+    constructor With2( ACode : TCode; ARegister_ : TRegister; AImmediate : Integer ); overload;
+    constructor With2( ACode : TCode; ARegister_ : TRegister; AImmediate : Cardinal ); overload;
+    constructor With2( ACode : TCode; ARegister_ : TRegister; AImmediate : Int64 ); overload;
+    constructor With2( ACode : TCode; ARegister_ : TRegister; AImmediate : UInt64 ); overload;
+    constructor With2( ACode : TCode; ARegister_ : TRegister; AMemory : TMemoryOperand ); overload;
+    constructor With2( ACode : TCode; AImmediate : Integer; ARegister_ : TRegister ); overload;
+    constructor With2( ACode : TCode; AImmediate : Cardinal; ARegister_ : TRegister ); overload;
+    constructor With2( ACode : TCode; AImmediate1 : Integer; AImmediate2 : Integer ); overload;
+    constructor With2( ACode : TCode; AImmediate1 : Cardinal; AImmediate2 : Cardinal ); overload;
+    constructor With2( ACode : TCode; AMemory : TMemoryOperand; ARegister_ : TRegister ); overload;
+    constructor With2( ACode : TCode; AMemory : TMemoryOperand; AImmediate : Integer ); overload;
+    constructor With2( ACode : TCode; AMemory : TMemoryOperand; AImmediate : Cardinal ); overload;
+    constructor With3( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister ); overload;
+    constructor With3( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AImmediate : Integer ); overload;
+    constructor With3( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AImmediate : Cardinal ); overload;
+    constructor With3( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AMemory : TMemoryOperand ); overload;
+    constructor With3( ACode : TCode; ARegister_ : TRegister; AImmediate1 : Integer; AImmediate2 : Integer ); overload;
+    constructor With3( ACode : TCode; ARegister_ : TRegister; AImmediate1 : Cardinal; AImmediate2 : Cardinal ); overload;
+    constructor With3( ACode : TCode; ARegister1 : TRegister; AMemory : TMemoryOperand; ARegister2 : TRegister ); overload;
+    constructor With3( ACode : TCode; ARegister1 : TRegister; AMemory : TMemoryOperand; AImmediate : Integer ); overload;
+    constructor With3( ACode : TCode; ARegister_ : TRegister; AMemory : TMemoryOperand; AImmediate : Cardinal ); overload;
+    constructor With3( ACode : TCode; AMemory : TMemoryOperand; ARegister1 : TRegister; ARegister2 : TRegister ); overload;
+    constructor With3( ACode : TCode; AMemory : TMemoryOperand; ARegister_ : TRegister; AImmediate : Integer ); overload;
+    constructor With3( ACode : TCode; AMemory : TMemoryOperand; ARegister_ : TRegister; AImmediate : Cardinal ); overload;
+    constructor With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; ARegister4 : TRegister ); overload;
+    constructor With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; AImmediate : Integer ); overload;
+    constructor With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; AImmediate : Cardinal ); overload;
+    constructor With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; AMemory : TMemoryOperand ); overload;
+    constructor With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AImmediate1 : Integer; AImmediate2 : Integer ); overload;
+    constructor With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AImmediate1 : Cardinal; AImmediate2 : Cardinal ); overload;
+    constructor With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AMemory : TMemoryOperand; ARegister3 : TRegister ); overload;
+    constructor With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AMemory : TMemoryOperand; AImmediate : Integer ); overload;
+    constructor With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AMemory : TMemoryOperand; AImmediate : Cardinal ); overload;
+    constructor With5( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; ARegister4 : TRegister; AImmediate : Integer ); overload;
+    constructor With5( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; ARegister4 : TRegister; AImmediate : Cardinal ); overload;
+    constructor With5( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; AMemory : TMemoryOperand; AImmediate : Integer ); overload;
+    constructor With5( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; AMemory : TMemoryOperand; AImmediate : Cardinal ); overload;
+    constructor With5( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AMemory : TMemoryOperand; ARegister3 : TRegister; AImmediate : Integer ); overload;
+    constructor With5( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AMemory : TMemoryOperand; ARegister3 : TRegister; AImmediate : Cardinal ); overload;
+    constructor With_Branch( ACode : TCode; Target : UInt64 );
+    constructor With_Far_Branch( ACode : TCode; Selector : Word; Offset : Cardinal );
     constructor With_xbegin( Bitness : Cardinal; Target : UInt64 );
     constructor With_outsb( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal );
     constructor With_Rep_outsb( AddressSize: Cardinal );
@@ -50584,13 +50585,13 @@ type
 
   TNumberBase = (
     // Hex numbers (base 16)
-    Hexadecimal = 0,
+    nbHexadecimal = 0,
     // Decimal numbers (base 10)
-    Decimal = 1,
+    nbDecimal = 1,
     // Octal numbers (base 8)
-    Octal = 2,
+    nbOctal = 2,
     // Binary numbers (base 2)
-    Binary = 3
+    nbBinary = 3
   );
 
   TNumberFormattingOptions = record
@@ -50620,7 +50621,7 @@ type
 
   TRelocKind = (
     // 64-bit offset. Only used if it's 64-bit code.
-    Offset64 = 0
+    rkOffset64 = 0
   );
 
   TRelocInfo = record
@@ -51058,22 +51059,22 @@ end;
 
 function TInstruction.IsConditionalJump : Boolean;
 begin
-  result := ( Code = Je_rel8_64 )  OR  ( Code = Jp_rel8_16 )  OR ( Code = Jg_rel8_32 ) OR ( Code = Jle_rel16 )    OR ( Code = Jle_rel32_32 ) OR ( Code = Jle_rel32_64 ) OR
-            ( Code = Jne_rel8_16 ) OR  ( Code = Jp_rel8_32 )  OR ( Code = Jg_rel8_64 ) OR ( Code = Jg_rel16 )     OR ( Code = Jg_rel32_32 )  OR ( Code = Jg_rel32_64 )  OR
-            ( Code = Jne_rel8_32 ) OR  ( Code = Jp_rel8_64 )  OR ( Code = Jo_rel16 )   OR ( Code = Jo_rel32_32 )  OR ( Code = Jo_rel32_64 )  OR
-            ( Code = Jne_rel8_64 ) OR  ( Code = Jnp_rel8_16 ) OR ( Code = Jno_rel16 )  OR ( Code = Jno_rel32_32 ) OR ( Code = Jno_rel32_64 ) OR
-            ( Code = Jbe_rel8_16 ) OR  ( Code = Jnp_rel8_32 ) OR ( Code = Jb_rel16 )   OR ( Code = Jb_rel32_32 )  OR ( Code = Jb_rel32_64 )  OR
-            ( Code = Jbe_rel8_32 ) OR  ( Code = Jnp_rel8_64 ) OR ( Code = Jae_rel16 )  OR ( Code = Jae_rel32_32 ) OR ( Code = Jae_rel32_64 ) OR
-            ( Code = Jbe_rel8_64 ) OR  ( Code = Jl_rel8_16 )  OR ( Code = Je_rel16 )   OR ( Code = Je_rel32_32 )  OR ( Code = Je_rel32_64 )  OR
-            ( Code = Ja_rel8_16 )  OR  ( Code = Jl_rel8_32 )  OR ( Code = Jne_rel16 )  OR ( Code = Jne_rel32_32 ) OR ( Code = Jne_rel32_64 ) OR
-            ( Code = Ja_rel8_32 )  OR  ( Code = Jl_rel8_64 )  OR ( Code = Jbe_rel16 )  OR ( Code = Jbe_rel32_32 ) OR ( Code = Jbe_rel32_64 ) OR
-            ( Code = Ja_rel8_64 )  OR  ( Code = Jge_rel8_16 ) OR ( Code = Ja_rel16 )   OR ( Code = Ja_rel32_32 )  OR ( Code = Ja_rel32_64 )  OR
-            ( Code = Js_rel8_16 )  OR  ( Code = Jge_rel8_32 ) OR ( Code = Js_rel16 )   OR ( Code = Js_rel32_32 )  OR ( Code = Js_rel32_64 )  OR
-            ( Code = Js_rel8_32 )  OR  ( Code = Jge_rel8_64 ) OR ( Code = Jns_rel16 )  OR ( Code = Jns_rel32_32 ) OR ( Code = Jns_rel32_64 ) OR
-            ( Code = Js_rel8_64 )  OR  ( Code = Jle_rel8_16 ) OR ( Code = Jp_rel16 )   OR ( Code = Jp_rel32_32 )  OR ( Code = Jp_rel32_64 )  OR
-            ( Code = Jns_rel8_16 ) OR  ( Code = Jle_rel8_32 ) OR ( Code = Jnp_rel16 )  OR ( Code = Jnp_rel32_32 ) OR ( Code = Jnp_rel32_64 ) OR
-            ( Code = Jns_rel8_32 ) OR  ( Code = Jle_rel8_64 ) OR ( Code = Jl_rel16 )   OR ( Code = Jl_rel32_32 )  OR ( Code = Jl_rel32_64 )  OR
-            ( Code = Jns_rel8_64 ) OR  ( Code = Jg_rel8_16 )  OR ( Code = Jge_rel16 )  OR ( Code = Jge_rel32_32 ) OR ( Code = Jge_rel32_64 );
+  result := ( Code = Je_rel8_64 )  OR  ( Code = Jp_rel8_16 )  OR ( Code = Jg_rel8_32 ) OR ( Code = Jle_rel16 )    OR ( Code = Jle_rel32_32 ) OR ( Code = Jle_rel32_64 ) OR ( Code = Jnp_rel16 ) OR
+            ( Code = Jne_rel8_16 ) OR  ( Code = Jp_rel8_32 )  OR ( Code = Jg_rel8_64 ) OR ( Code = Jg_rel16 )     OR ( Code = Jg_rel32_32 )  OR ( Code = Jg_rel32_64 )  OR ( Code = Jl_rel16 )  OR
+            ( Code = Jne_rel8_32 ) OR  ( Code = Jp_rel8_64 )  OR ( Code = Jo_rel16 )   OR ( Code = Jo_rel32_32 )  OR ( Code = Jo_rel32_64 )  OR ( Code = Jo_rel8_16 )   OR ( Code = Jge_rel16 ) OR
+            ( Code = Jne_rel8_64 ) OR  ( Code = Jnp_rel8_16 ) OR ( Code = Jno_rel16 )  OR ( Code = Jno_rel32_32 ) OR ( Code = Jno_rel32_64 ) OR ( Code = Jo_rel8_32 )   OR
+            ( Code = Jbe_rel8_16 ) OR  ( Code = Jnp_rel8_32 ) OR ( Code = Jb_rel16 )   OR ( Code = Jb_rel32_32 )  OR ( Code = Jb_rel32_64 )  OR ( Code = Jo_rel8_64 )   OR
+            ( Code = Jbe_rel8_32 ) OR  ( Code = Jnp_rel8_64 ) OR ( Code = Jae_rel16 )  OR ( Code = Jae_rel32_32 ) OR ( Code = Jae_rel32_64 ) OR ( Code = Jno_rel8_16 )  OR
+            ( Code = Jbe_rel8_64 ) OR  ( Code = Jl_rel8_16 )  OR ( Code = Je_rel16 )   OR ( Code = Je_rel32_32 )  OR ( Code = Je_rel32_64 )  OR ( Code = Jno_rel8_32 )  OR
+            ( Code = Ja_rel8_16 )  OR  ( Code = Jl_rel8_32 )  OR ( Code = Jne_rel16 )  OR ( Code = Jne_rel32_32 ) OR ( Code = Jne_rel32_64 ) OR ( Code = Jno_rel8_64 )  OR
+            ( Code = Ja_rel8_32 )  OR  ( Code = Jl_rel8_64 )  OR ( Code = Jbe_rel16 )  OR ( Code = Jbe_rel32_32 ) OR ( Code = Jbe_rel32_64 ) OR ( Code = Jb_rel8_16 )   OR
+            ( Code = Ja_rel8_64 )  OR  ( Code = Jge_rel8_16 ) OR ( Code = Ja_rel16 )   OR ( Code = Ja_rel32_32 )  OR ( Code = Ja_rel32_64 )  OR ( Code = Jb_rel8_32 )   OR
+            ( Code = Js_rel8_16 )  OR  ( Code = Jge_rel8_32 ) OR ( Code = Js_rel16 )   OR ( Code = Js_rel32_32 )  OR ( Code = Js_rel32_64 )  OR ( Code = Jb_rel8_64 )   OR
+            ( Code = Js_rel8_32 )  OR  ( Code = Jge_rel8_64 ) OR ( Code = Jns_rel16 )  OR ( Code = Jns_rel32_32 ) OR ( Code = Jns_rel32_64 ) OR ( Code = Jae_rel8_16 )  OR
+            ( Code = Js_rel8_64 )  OR  ( Code = Jle_rel8_16 ) OR ( Code = Jp_rel16 )   OR ( Code = Jp_rel32_32 )  OR ( Code = Jp_rel32_64 )  OR ( Code = Jae_rel8_32 )  OR
+            ( Code = Jns_rel8_16 ) OR  ( Code = Jle_rel8_32 ) OR ( Code = Jnp_rel16 )  OR ( Code = Jnp_rel32_32 ) OR ( Code = Jnp_rel32_64 ) OR ( Code = Jae_rel8_64 )  OR
+            ( Code = Jns_rel8_32 ) OR  ( Code = Jle_rel8_64 ) OR ( Code = Jl_rel16 )   OR ( Code = Jl_rel32_32 )  OR ( Code = Jl_rel32_64 )  OR ( Code = Je_rel8_16 )   OR
+            ( Code = Jns_rel8_64 ) OR  ( Code = Jg_rel8_16 )  OR ( Code = Jge_rel16 )  OR ( Code = Jge_rel32_32 ) OR ( Code = Jge_rel32_64 ) OR ( Code = Je_rel8_32 );
 end;
 
 function TInstruction.IsCall : Boolean;
@@ -52444,9 +52445,9 @@ begin
   result := Instruction_OpCodeInfo_OPKind( self, operand );
 end;
 
-function TInstruction.OpCodeInfo_OPKinds( var OPKinds : TOPCodeOperandKindArray ) : Boolean;
+function TInstruction.OpCodeInfo_OPKinds( var AOPKinds : TOPCodeOperandKindArray ) : Boolean;
 begin
-  result := Instruction_OpCodeInfo_OPKinds( self, OPKinds );
+  result := Instruction_OpCodeInfo_OPKinds( self, AOPKinds );
 end;
 
 function TInstruction.OpCodeInfo_IsAvailableInMode( Bitness : Cardinal ) : Boolean;
@@ -52509,17 +52510,17 @@ end;
 // * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
 // * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
 // * `segment_prefix`: Segment override or [`Register::None`]
-constructor TMemoryOperand.New( Base: TRegister; Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister );
+constructor TMemoryOperand.New( ABase: TRegister; AIndex: TRegister; AScale: Cardinal; ADisplacement: Int64; ADisplSize : Cardinal; AIsBroadcast : Boolean; ASegmentPrefix : TRegister );
 begin
   inherited;
 
-  self.Base           := Base;
-  self.Index          := Index;
-  self.Scale          := Scale;
-  self.Displacement   := Displacement;
-  self.displ_size     := DisplSize;
-  self.is_broadcast   := IsBroadcast;
-  self.segment_prefix := SegmentPrefix;
+  self.Base           := ABase;
+  self.Index          := AIndex;
+  self.Scale          := AScale;
+  self.Displacement   := ADisplacement;
+  self.displ_size     := ADisplSize;
+  self.is_broadcast   := AIsBroadcast;
+  self.segment_prefix := ASegmentPrefix;
 end;
 
 // # Arguments
@@ -52528,17 +52529,17 @@ end;
 // * `scale`: Index register scale (1, 2, 4, or 8)
 // * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
 // * `segment_prefix`: Segment override or [`Register::None`]
-constructor TMemoryOperand.With_Base_Index_Scale_Bcst_Seg( Base: TRegister; Index: TRegister; Scale: Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister );
+constructor TMemoryOperand.With_Base_Index_Scale_Bcst_Seg( ABase: TRegister; AIndex: TRegister; AScale: Cardinal; AIsBroadcast : Boolean; ASegmentPrefix : TRegister );
 begin
   inherited;
 
-  self.Base           := Base;
-  self.Index          := Index;
-  self.Scale          := Scale;
+  self.Base           := ABase;
+  self.Index          := AIndex;
+  self.Scale          := AScale;
   self.Displacement   := 0;
   self.displ_size     := 0;
-  self.is_broadcast   := IsBroadcast;
-  self.segment_prefix := SegmentPrefix;
+  self.is_broadcast   := AIsBroadcast;
+  self.segment_prefix := ASegmentPrefix;
 end;
 
 // # Arguments
@@ -52548,17 +52549,17 @@ end;
 // * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
 // * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
 // * `segment_prefix`: Segment override or [`Register::None`]
-constructor TMemoryOperand.With_Base_Displ_Size_Bcst_Seg( Base: TRegister; Displacement: Int64; DisplSize : Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister );
+constructor TMemoryOperand.With_Base_Displ_Size_Bcst_Seg( ABase: TRegister; ADisplacement: Int64; ADisplSize : Cardinal; AIsBroadcast : Boolean; ASegmentPrefix : TRegister );
 begin
   inherited;
 
-  self.Base           := Base;
+  self.Base           := ABase;
   self.Index          := None;
   self.Scale          := 1;
-  self.Displacement   := Displacement;
-  self.displ_size     := DisplSize;
-  self.is_broadcast   := IsBroadcast;
-  self.segment_prefix := SegmentPrefix;
+  self.Displacement   := ADisplacement;
+  self.displ_size     := ADisplSize;
+  self.is_broadcast   := AIsBroadcast;
+  self.segment_prefix := ASegmentPrefix;
 end;
 
 // # Arguments
@@ -52568,17 +52569,17 @@ end;
 // * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
 // * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
 // * `segment_prefix`: Segment override or [`Register::None`]
-constructor TMemoryOperand.With_Index_Scale_Displ_Size_Bcst_Seg( Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister );
+constructor TMemoryOperand.With_Index_Scale_Displ_Size_Bcst_Seg( AIndex: TRegister; AScale: Cardinal; ADisplacement: Int64; ADisplSize : Cardinal; AIsBroadcast : Boolean; ASegmentPrefix : TRegister );
 begin
   inherited;
 
   self.Base           := None;
-  self.Index          := Index;
-  self.Scale          := Scale;
-  self.Displacement   := Displacement;
-  self.displ_size     := DisplSize;
-  self.is_broadcast   := IsBroadcast;
-  self.segment_prefix := SegmentPrefix;
+  self.Index          := AIndex;
+  self.Scale          := AScale;
+  self.Displacement   := ADisplacement;
+  self.displ_size     := ADisplSize;
+  self.is_broadcast   := AIsBroadcast;
+  self.segment_prefix := ASegmentPrefix;
 end;
 
 // # Arguments
@@ -52586,17 +52587,17 @@ end;
 // * `displacement`: Memory displacement
 // * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
 // * `segment_prefix`: Segment override or [`Register::None`]
-constructor TMemoryOperand.With_Base_Displ_Bcst_Seg( Base: TRegister; Displacement: Int64; IsBroadcast : Boolean; SegmentPrefix : TRegister );
+constructor TMemoryOperand.With_Base_Displ_Bcst_Seg( ABase: TRegister; ADisplacement: Int64; AIsBroadcast : Boolean; ASegmentPrefix : TRegister );
 begin
   inherited;
 
-  self.Base           := Base;
+  self.Base           := ABase;
   self.Index          := None;
   self.Scale          := 1;
-  self.Displacement   := Displacement;
+  self.Displacement   := ADisplacement;
   self.displ_size     := 1;
-  self.is_broadcast   := IsBroadcast;
-  self.segment_prefix := SegmentPrefix;
+  self.is_broadcast   := AIsBroadcast;
+  self.segment_prefix := ASegmentPrefix;
 end;
 
 // # Arguments
@@ -52605,15 +52606,15 @@ end;
 // * `scale`: Index register scale (1, 2, 4, or 8)
 // * `displacement`: Memory displacement
 // * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
-constructor TMemoryOperand.With_Base_Index_Scale_DisplSize( Base: TRegister; Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal );
+constructor TMemoryOperand.With_Base_Index_Scale_DisplSize( ABase: TRegister; AIndex: TRegister; AScale: Cardinal; ADisplacement: Int64; ADisplSize : Cardinal );
 begin
   inherited;
 
-  self.Base           := Base;
-  self.Index          := Index;
-  self.Scale          := Scale;
-  self.Displacement   := Displacement;
-  self.displ_size     := DisplSize;
+  self.Base           := ABase;
+  self.Index          := AIndex;
+  self.Scale          := AScale;
+  self.Displacement   := ADisplacement;
+  self.displ_size     := ADisplSize;
   self.is_broadcast   := False;
   self.segment_prefix := None;
 end;
@@ -52622,13 +52623,13 @@ end;
 // * `base`: Base register or [`Register::None`]
 // * `index`: Index register or [`Register::None`]
 // * `scale`: Index register scale (1, 2, 4, or 8)
-constructor TMemoryOperand.With_Base_Index_Scale( Base: TRegister; Index: TRegister; Scale: Cardinal );
+constructor TMemoryOperand.With_Base_Index_Scale( ABase: TRegister; AIndex: TRegister; AScale: Cardinal );
 begin
   inherited;
 
-  self.Base           := Base;
-  self.Index          := Index;
-  self.Scale          := Scale;
+  self.Base           := ABase;
+  self.Index          := AIndex;
+  self.Scale          := AScale;
   self.Displacement   := 0;
   self.displ_size     := 0;
   self.is_broadcast   := False;
@@ -52638,12 +52639,12 @@ end;
 // # Arguments
 // * `base`: Base register or [`Register::None`]
 // * `index`: Index register or [`Register::None`]
-constructor TMemoryOperand.With_Base_Index( Base: TRegister; Index: TRegister );
+constructor TMemoryOperand.With_Base_Index( ABase: TRegister; AIndex: TRegister );
 begin
   inherited;
 
-  self.Base           := Base;
-  self.Index          := Index;
+  self.Base           := ABase;
+  self.Index          := AIndex;
   self.Scale          := 1;
   self.Displacement   := 0;
   self.displ_size     := 0;
@@ -52655,15 +52656,15 @@ end;
 // * `base`: Base register or [`Register::None`]
 // * `displacement`: Memory displacement
 // * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
-constructor TMemoryOperand.With_Base_Displ_Size( Base: TRegister; Displacement: Int64; DisplSize : Cardinal );
+constructor TMemoryOperand.With_Base_Displ_Size( ABase: TRegister; ADisplacement: Int64; ADisplSize : Cardinal );
 begin
   inherited;
 
-  self.Base           := Base;
+  self.Base           := ABase;
   self.Index          := None;
   self.Scale          := 1;
-  self.Displacement   := Displacement;
-  self.displ_size     := DisplSize;
+  self.Displacement   := ADisplacement;
+  self.displ_size     := ADisplSize;
   self.is_broadcast   := False;
   self.segment_prefix := None;
 end;
@@ -52673,15 +52674,15 @@ end;
 // * `scale`: Index register scale (1, 2, 4, or 8)
 // * `displacement`: Memory displacement
 // * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
-constructor TMemoryOperand.With_Index_Scale_Displ_Size( Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal );
+constructor TMemoryOperand.With_Index_Scale_Displ_Size( AIndex: TRegister; AScale: Cardinal; ADisplacement: Int64; ADisplSize : Cardinal );
 begin
   inherited;
 
   self.Base           := None;
-  self.Index          := Index;
-  self.Scale          := Scale;
-  self.Displacement   := Displacement;
-  self.displ_size     := DisplSize;
+  self.Index          := AIndex;
+  self.Scale          := AScale;
+  self.Displacement   := ADisplacement;
+  self.displ_size     := ADisplSize;
   self.is_broadcast   := False;
   self.segment_prefix := None;
 end;
@@ -52689,14 +52690,14 @@ end;
 // # Arguments
 // * `base`: Base register or [`Register::None`]
 // * `displacement`: Memory displacement
-constructor TMemoryOperand.With_Base_Displ( Base: TRegister; Displacement: Int64 );
+constructor TMemoryOperand.With_Base_Displ( ABase: TRegister; ADisplacement: Int64 );
 begin
   inherited;
 
-  self.Base           := Base;
+  self.Base           := ABase;
   self.Index          := None;
   self.Scale          := 1;
-  self.Displacement   := Displacement;
+  self.Displacement   := ADisplacement;
   self.displ_size     := 1;
   self.is_broadcast   := False;
   self.segment_prefix := None;
@@ -52704,11 +52705,11 @@ end;
 
 // # Arguments
 // * `base`: Base register or [`Register::None`]
-constructor TMemoryOperand.With_Base( Base: TRegister );
+constructor TMemoryOperand.With_Base( ABase: TRegister );
 begin
   inherited;
 
-  self.Base           := Base;
+  self.Base           := ABase;
   self.Index          := None;
   self.Scale          := 1;
   self.Displacement   := 0;
@@ -52720,15 +52721,15 @@ end;
 // # Arguments
 // * `displacement`: Memory displacement
 // * `displ_size`: 2 (16-bit), 4 (32-bit) or 8 (64-bit)
-constructor TMemoryOperand.With_Displ( Displacement: Int64; DisplSize : Cardinal );
+constructor TMemoryOperand.With_Displ( ADisplacement: Int64; ADisplSize : Cardinal );
 begin
   inherited;
 
   self.Base           := None;
   self.Index          := None;
   self.Scale          := 1;
-  self.Displacement   := Displacement;
-  self.displ_size     := DisplSize;
+  self.Displacement   := ADisplacement;
+  self.displ_size     := ADisplSize;
   self.is_broadcast   := False;
   self.segment_prefix := None;
 end;
@@ -52736,9 +52737,9 @@ end;
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instruction 'WITH'
 // Creates an instruction with no operands
-constructor TInstruction.With_( Code : TCode );
+constructor TInstruction.With_( ACode : TCode );
 begin
-  if NOT Instruction_With( self, Code ) then
+  if NOT Instruction_With( self, ACode ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
@@ -52746,279 +52747,279 @@ end;
 //
 // # Errors
 // Fails if one of the operands is invalid (basic checks)
-constructor TInstruction.With1( Code : TCode; Register_ : TRegister );
+constructor TInstruction.With1( ACode : TCode; ARegister_ : TRegister );
 begin
-  if NOT Instruction_With1_Register( self, Code, Register_ ) then
+  if NOT Instruction_With1_Register( self, ACode, ARegister_ ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With1( Code : TCode; Immediate : Integer );
+constructor TInstruction.With1( ACode : TCode; AImmediate : Integer );
 begin
-  if NOT Instruction_With1_i32( self, Code, Immediate ) then
+  if NOT Instruction_With1_i32( self, ACode, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With1( Code : TCode; Immediate : Cardinal );
+constructor TInstruction.With1( ACode : TCode; AImmediate : Cardinal );
 begin
-  if NOT Instruction_With1_u32( self, Code, Immediate ) then
+  if NOT Instruction_With1_u32( self, ACode, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With1( Code : TCode; Memory : TMemoryOperand );
+constructor TInstruction.With1( ACode : TCode; AMemory : TMemoryOperand );
 begin
-  if NOT Instruction_With1_Memory( self, Code, Memory ) then
+  if NOT Instruction_With1_Memory( self, ACode, AMemory ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With2( Code : TCode; Register1 : TRegister; Register2 : TRegister );
+constructor TInstruction.With2( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister );
 begin
-  if NOT Instruction_With2_Register_Register( self, Code, Register1, Register2 ) then
+  if NOT Instruction_With2_Register_Register( self, ACode, ARegister1, ARegister2 ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With2( Code : TCode; Register_ : TRegister; Immediate : Integer );
+constructor TInstruction.With2( ACode : TCode; ARegister_ : TRegister; AImmediate : Integer );
 begin
-  if NOT Instruction_With2_Register_i32( self, Code, Register_, Immediate ) then
+  if NOT Instruction_With2_Register_i32( self, ACode, ARegister_, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With2( Code : TCode; Register_ : TRegister; Immediate : Cardinal );
+constructor TInstruction.With2( ACode : TCode; ARegister_ : TRegister; AImmediate : Cardinal );
 begin
-  if NOT Instruction_With2_Register_u32( self, Code, Register_, Immediate ) then
+  if NOT Instruction_With2_Register_u32( self, ACode, ARegister_, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With2( Code : TCode; Register_ : TRegister; Immediate : Int64 );
+constructor TInstruction.With2( ACode : TCode; ARegister_ : TRegister; AImmediate : Int64 );
 begin
-  if NOT Instruction_With2_Register_i64( self, Code, Register_, Immediate ) then
+  if NOT Instruction_With2_Register_i64( self, ACode, ARegister_, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With2( Code : TCode; Register_ : TRegister; Immediate : UInt64 );
+constructor TInstruction.With2( ACode : TCode; ARegister_ : TRegister; AImmediate : UInt64 );
 begin
-  if NOT Instruction_With2_Register_u64( self, Code, Register_, Immediate ) then
+  if NOT Instruction_With2_Register_u64( self, ACode, ARegister_, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With2( Code : TCode; Register_ : TRegister; Memory : TMemoryOperand );
+constructor TInstruction.With2( ACode : TCode; ARegister_ : TRegister; AMemory : TMemoryOperand );
 begin
-  if NOT Instruction_With2_Register_MemoryOperand( self, Code, Register_, Memory ) then
+  if NOT Instruction_With2_Register_MemoryOperand( self, ACode, ARegister_, AMemory ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With2( Code : TCode; Immediate : Integer; Register_ : TRegister );
+constructor TInstruction.With2( ACode : TCode; AImmediate : Integer; ARegister_ : TRegister );
 begin
-  if NOT Instruction_With2_i32_Register( self, Code, Immediate, Register_ ) then
+  if NOT Instruction_With2_i32_Register( self, ACode, AImmediate, ARegister_ ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With2( Code : TCode; Immediate : Cardinal; Register_ : TRegister );
+constructor TInstruction.With2( ACode : TCode; AImmediate : Cardinal; ARegister_ : TRegister );
 begin
-  if NOT Instruction_With2_u32_Register( self, Code, Immediate, Register_ ) then
+  if NOT Instruction_With2_u32_Register( self, ACode, AImmediate, ARegister_ ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With2( Code : TCode; Immediate1 : Integer; Immediate2 : Integer );
+constructor TInstruction.With2( ACode : TCode; AImmediate1 : Integer; AImmediate2 : Integer );
 begin
-  if NOT Instruction_With2_i32_i32( self, Code, Immediate1, Immediate2 ) then
+  if NOT Instruction_With2_i32_i32( self, ACode, AImmediate1, AImmediate2 ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With2( Code : TCode; Immediate1 : Cardinal; Immediate2 : Cardinal );
+constructor TInstruction.With2( ACode : TCode; AImmediate1 : Cardinal; AImmediate2 : Cardinal );
 begin
-  if NOT Instruction_With2_u32_u32( self, Code, Immediate1, Immediate2 ) then
+  if NOT Instruction_With2_u32_u32( self, ACode, AImmediate1, AImmediate2 ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With2( Code : TCode; Memory : TMemoryOperand; Register_ : TRegister );
+constructor TInstruction.With2( ACode : TCode; AMemory : TMemoryOperand; ARegister_ : TRegister );
 begin
-  if NOT Instruction_With2_MemoryOperand_Register( self, Code, Memory, Register_ ) then
+  if NOT Instruction_With2_MemoryOperand_Register( self, ACode, AMemory, ARegister_ ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With2( Code : TCode; Memory : TMemoryOperand; Immediate : Integer );
+constructor TInstruction.With2( ACode : TCode; AMemory : TMemoryOperand; AImmediate : Integer );
 begin
-  if NOT Instruction_With2_MemoryOperand_i32( self, Code, Memory, Immediate ) then
+  if NOT Instruction_With2_MemoryOperand_i32( self, ACode, AMemory, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With2( Code : TCode; Memory : TMemoryOperand; Immediate : Cardinal );
+constructor TInstruction.With2( ACode : TCode; AMemory : TMemoryOperand; AImmediate : Cardinal );
 begin
-  if NOT Instruction_With2_MemoryOperand_u32( self, Code, Memory, Immediate ) then
+  if NOT Instruction_With2_MemoryOperand_u32( self, ACode, AMemory, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister );
+constructor TInstruction.With3( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister );
 begin
-  if NOT Instruction_With3_Register_Register_Register( self, Code, Register1, Register2, Register3 ) then
+  if NOT Instruction_With3_Register_Register_Register( self, ACode, ARegister1, ARegister2, ARegister3 ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate : Integer );
+constructor TInstruction.With3( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AImmediate : Integer );
 begin
-  if NOT Instruction_With3_Register_Register_i32( self, Code, Register1, Register2, Immediate ) then
+  if NOT Instruction_With3_Register_Register_i32( self, ACode, ARegister1, ARegister2, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate : Cardinal );
+constructor TInstruction.With3( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AImmediate : Cardinal );
 begin
-  if NOT Instruction_With3_Register_Register_u32( self, Code, Register1, Register2, Immediate ) then
+  if NOT Instruction_With3_Register_Register_u32( self, ACode, ARegister1, ARegister2, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand );
+constructor TInstruction.With3( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AMemory : TMemoryOperand );
 begin
-  if NOT Instruction_With3_Register_Register_MemoryOperand( self, Code, Register1, Register2, Memory ) then
+  if NOT Instruction_With3_Register_Register_MemoryOperand( self, ACode, ARegister1, ARegister2, AMemory ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With3( Code : TCode; Register_ : TRegister; Immediate1 : Integer; Immediate2 : Integer );
+constructor TInstruction.With3( ACode : TCode; ARegister_ : TRegister; AImmediate1 : Integer; AImmediate2 : Integer );
 begin
-  if NOT Instruction_With3_Register_i32_i32( self, Code, Register_, Immediate1, Immediate2 ) then
+  if NOT Instruction_With3_Register_i32_i32( self, ACode, ARegister_, AImmediate1, AImmediate2 ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With3( Code : TCode; Register_ : TRegister; Immediate1 : Cardinal; Immediate2 : Cardinal );
+constructor TInstruction.With3( ACode : TCode; ARegister_ : TRegister; AImmediate1 : Cardinal; AImmediate2 : Cardinal );
 begin
-  if NOT Instruction_With3_Register_u32_u32( self, Code, Register_, Immediate1, Immediate2 ) then
+  if NOT Instruction_With3_Register_u32_u32( self, ACode, ARegister_, AImmediate1, AImmediate2 ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With3( Code : TCode; Register1 : TRegister; Memory : TMemoryOperand; Register2 : TRegister );
+constructor TInstruction.With3( ACode : TCode; ARegister1 : TRegister; AMemory : TMemoryOperand; ARegister2 : TRegister );
 begin
-  if NOT Instruction_With3_Register_MemoryOperand_Register( self, Code, Register1, Memory, Register2 ) then
+  if NOT Instruction_With3_Register_MemoryOperand_Register( self, ACode, ARegister1, AMemory, ARegister2 ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With3( Code : TCode; Register1 : TRegister; Memory : TMemoryOperand; Immediate : Integer );
+constructor TInstruction.With3( ACode : TCode; ARegister1 : TRegister; AMemory : TMemoryOperand; AImmediate : Integer );
 begin
-  if NOT Instruction_With3_Register_MemoryOperand_i32( self, Code, Register1, Memory, Immediate ) then
+  if NOT Instruction_With3_Register_MemoryOperand_i32( self, ACode, ARegister1, AMemory, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With3( Code : TCode; Register_ : TRegister; Memory : TMemoryOperand; Immediate : Cardinal );
+constructor TInstruction.With3( ACode : TCode; ARegister_ : TRegister; AMemory : TMemoryOperand; AImmediate : Cardinal );
 begin
-  if NOT Instruction_With3_Register_MemoryOperand_u32( self, Code, Register_, Memory, Immediate ) then
+  if NOT Instruction_With3_Register_MemoryOperand_u32( self, ACode, ARegister_, AMemory, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With3( Code : TCode; Memory : TMemoryOperand; Register1 : TRegister; Register2 : TRegister );
+constructor TInstruction.With3( ACode : TCode; AMemory : TMemoryOperand; ARegister1 : TRegister; ARegister2 : TRegister );
 begin
-  if NOT Instruction_With3_MemoryOperand_Register_Register( self, Code, Memory, Register1, Register2 ) then
+  if NOT Instruction_With3_MemoryOperand_Register_Register( self, ACode, AMemory, ARegister1, ARegister2 ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With3( Code : TCode; Memory : TMemoryOperand; Register_ : TRegister; Immediate : Integer );
+constructor TInstruction.With3( ACode : TCode; AMemory : TMemoryOperand; ARegister_ : TRegister; AImmediate : Integer );
 begin
-  if NOT Instruction_With3_MemoryOperand_Register_i32( self, Code, Memory, Register_, Immediate ) then
+  if NOT Instruction_With3_MemoryOperand_Register_i32( self, ACode, AMemory, ARegister_, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With3( Code : TCode; Memory : TMemoryOperand; Register_ : TRegister; Immediate : Cardinal );
+constructor TInstruction.With3( ACode : TCode; AMemory : TMemoryOperand; ARegister_ : TRegister; AImmediate : Cardinal );
 begin
-  if NOT Instruction_With3_MemoryOperand_Register_u32( self, Code, Memory, Register_, Immediate ) then
+  if NOT Instruction_With3_MemoryOperand_Register_u32( self, ACode, AMemory, ARegister_, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Register4 : TRegister );
+constructor TInstruction.With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; ARegister4 : TRegister );
 begin
-  if NOT Instruction_With4_Register_Register_Register_Register( self, Code, Register1, Register2, Register3, Register4 ) then
+  if NOT Instruction_With4_Register_Register_Register_Register( self, ACode, ARegister1, ARegister2, ARegister3, ARegister4 ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Immediate : Integer );
+constructor TInstruction.With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; AImmediate : Integer );
 begin
-  if NOT Instruction_With4_Register_Register_Register_i32( self, Code, Register1, Register2, Register3, Immediate ) then
+  if NOT Instruction_With4_Register_Register_Register_i32( self, ACode, ARegister1, ARegister2, ARegister3, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Immediate : Cardinal );
+constructor TInstruction.With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; AImmediate : Cardinal );
 begin
-  if NOT Instruction_With4_Register_Register_Register_u32( self, Code, Register1, Register2, Register3, Immediate ) then
+  if NOT Instruction_With4_Register_Register_Register_u32( self, ACode, ARegister1, ARegister2, ARegister3, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Memory : TMemoryOperand );
+constructor TInstruction.With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; AMemory : TMemoryOperand );
 begin
-  if NOT Instruction_With4_Register_Register_Register_MemoryOperand( self, Code, Register1, Register2, Register3, Memory ) then
+  if NOT Instruction_With4_Register_Register_Register_MemoryOperand( self, ACode, ARegister1, ARegister2, ARegister3, AMemory ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate1 : Integer; Immediate2 : Integer );
+constructor TInstruction.With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AImmediate1 : Integer; AImmediate2 : Integer );
 begin
-  if NOT Instruction_With4_Register_Register_i32_i32( self, Code, Register1, Register2, Immediate1, Immediate2 ) then
+  if NOT Instruction_With4_Register_Register_i32_i32( self, ACode, ARegister1, ARegister2, AImmediate1, AImmediate2 ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate1 : Cardinal; Immediate2 : Cardinal );
+constructor TInstruction.With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AImmediate1 : Cardinal; AImmediate2 : Cardinal );
 begin
-  if NOT Instruction_With4_Register_Register_u32_u32( self, Code, Register1, Register2, Immediate1, Immediate2 ) then
+  if NOT Instruction_With4_Register_Register_u32_u32( self, ACode, ARegister1, ARegister2, AImmediate1, AImmediate2 ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Register3 : TRegister );
+constructor TInstruction.With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AMemory : TMemoryOperand; ARegister3 : TRegister );
 begin
-  if NOT Instruction_With4_Register_Register_MemoryOperand_Register( self, Code, Register1, Register2, Memory, Register3 ) then
+  if NOT Instruction_With4_Register_Register_MemoryOperand_Register( self, ACode, ARegister1, ARegister2, AMemory, ARegister3 ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Immediate : Integer );
+constructor TInstruction.With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AMemory : TMemoryOperand; AImmediate : Integer );
 begin
-  if NOT Instruction_With4_Register_Register_MemoryOperand_i32( self, Code, Register1, Register2, Memory, Immediate ) then
+  if NOT Instruction_With4_Register_Register_MemoryOperand_i32( self, ACode, ARegister1, ARegister2, AMemory, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Immediate : Cardinal );
+constructor TInstruction.With4( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AMemory : TMemoryOperand; AImmediate : Cardinal );
 begin
-  if NOT Instruction_With4_Register_Register_MemoryOperand_u32( self, Code, Register1, Register2, Memory, Immediate ) then
+  if NOT Instruction_With4_Register_Register_MemoryOperand_u32( self, ACode, ARegister1, ARegister2, AMemory, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Register4 : TRegister; Immediate : Integer );
+constructor TInstruction.With5( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; ARegister4 : TRegister; AImmediate : Integer );
 begin
-  if NOT Instruction_With5_Register_Register_Register_Register_i32( self, Code, Register1, Register2, Register3, Register4, Immediate ) then
+  if NOT Instruction_With5_Register_Register_Register_Register_i32( self, ACode, ARegister1, ARegister2, ARegister3, ARegister4, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Register4 : TRegister; Immediate : Cardinal );
+constructor TInstruction.With5( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; ARegister4 : TRegister; AImmediate : Cardinal );
 begin
-  if NOT Instruction_With5_Register_Register_Register_Register_u32( self, Code, Register1, Register2, Register3, Register4, Immediate ) then
+  if NOT Instruction_With5_Register_Register_Register_Register_u32( self, ACode, ARegister1, ARegister2, ARegister3, ARegister4, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Memory : TMemoryOperand; Immediate : Integer );
+constructor TInstruction.With5( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; AMemory : TMemoryOperand; AImmediate : Integer );
 begin
-  if NOT Instruction_With5_Register_Register_Register_MemoryOperand_i32( self, Code, Register1, Register2, Register3, Memory, Immediate ) then
+  if NOT Instruction_With5_Register_Register_Register_MemoryOperand_i32( self, ACode, ARegister1, ARegister2, ARegister3, AMemory, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Memory : TMemoryOperand; Immediate : Cardinal );
+constructor TInstruction.With5( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; ARegister3 : TRegister; AMemory : TMemoryOperand; AImmediate : Cardinal );
 begin
-  if NOT Instruction_With5_Register_Register_Register_MemoryOperand_u32( self, Code, Register1, Register2, Register3, Memory, Immediate ) then
+  if NOT Instruction_With5_Register_Register_Register_MemoryOperand_u32( self, ACode, ARegister1, ARegister2, ARegister3, AMemory, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Register3 : TRegister; Immediate : Integer );
+constructor TInstruction.With5( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AMemory : TMemoryOperand; ARegister3 : TRegister; AImmediate : Integer );
 begin
-  if NOT Instruction_With5_Register_Register_MemoryOperand_Register_i32( self, Code, Register1, Register2, Memory, Register3, Immediate ) then
+  if NOT Instruction_With5_Register_Register_MemoryOperand_Register_i32( self, ACode, ARegister1, ARegister2, AMemory, ARegister3, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Register3 : TRegister; Immediate : Cardinal );
+constructor TInstruction.With5( ACode : TCode; ARegister1 : TRegister; ARegister2 : TRegister; AMemory : TMemoryOperand; ARegister3 : TRegister; AImmediate : Cardinal );
 begin
-  if NOT Instruction_With5_Register_Register_MemoryOperand_Register_u32( self, Code, Register1, Register2, Memory, Register3, Immediate ) then
+  if NOT Instruction_With5_Register_Register_MemoryOperand_Register_u32( self, ACode, ARegister1, ARegister2, AMemory, ARegister3, AImmediate ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With_Branch( Code : TCode; Target : UInt64 );
+constructor TInstruction.With_Branch( ACode : TCode; Target : UInt64 );
 begin
-  if NOT Instruction_With_Branch( self, Code, Target ) then
+  if NOT Instruction_With_Branch( self, ACode, Target ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
-constructor TInstruction.With_Far_Branch( Code : TCode; Selector : Word; Offset : Cardinal );
+constructor TInstruction.With_Far_Branch( ACode : TCode; Selector : Word; Offset : Cardinal );
 begin
-  if NOT Instruction_With_Far_Branch( self, Code, Selector, Offset ) then
+  if NOT Instruction_With_Far_Branch( self, ACode, Selector, Offset ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
 
