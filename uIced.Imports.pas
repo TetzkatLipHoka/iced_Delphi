@@ -3,7 +3,7 @@ unit uIced.Imports;
 {
   Iced (Dis)Assembler
 
-  TetzkatLipHoka 2022
+  TetzkatLipHoka 2022-2023
 }
 
 interface
@@ -65,7 +65,7 @@ const
   {$ELSE}
   DLLName_    : Array [0..DLLCount_-1] of String = ( 'Iced.dll' );
   {$ENDIF}
-  DLLVersion_ : Array [0..DLLCount_-1] of String = ( '' );
+  DLLVersion_ : Array [0..DLLCount_-1] of String = ( '1.0.3.0' );
   {$IFDEF ResourceMode}
   DLLPass_    : Array [0..DLLCount_-1] of String = ( '' );
   {$ENDIF}
