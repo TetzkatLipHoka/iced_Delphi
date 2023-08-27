@@ -3,7 +3,7 @@ unit uIced;
 {
   Iced (Dis)Assembler
 
-  TetzkatLipHoka 2022
+  TetzkatLipHoka 2022-2023
 }
 
 // MS
@@ -528,6 +528,11 @@ type
   end;
   tIcedReferenceScanResults = Array of tIcedReferenceScanResult;
 
+  tIcedAssemblyScanMode = (
+    asmEqual, asmWildcard
+    {$IF CompilerVersion >= 1}, asmRegExp{$IFEND} // XE // MS !!!
+  );
+
   tIcedPointerScanProcessEvent = procedure( Current, Total : Cardinal; var Cancel : Boolean ) of object;
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -547,12 +552,12 @@ type
     property    InfoFactory  : TInstructionInfoFactory read fInfoFactory;
     property    Formatter    : TIcedFormatter          read fFormatter;
 
-    function    DecodeFromFile( FileName : String; Size : Cardinal; Offset : UInt64; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal;
-    function    DecodeFromStream( Data : TMemoryStream; Size : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal;
+    function    DecodeFromFile( FileName : String; Size : Cardinal; Offset : UInt64; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : Cardinal;
+    function    DecodeFromStream( Data : TMemoryStream; Size : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : Cardinal;
 
     function    Decode( Data : PByte; Size : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal; overload;
     function    Decode( Data : PByte; Size : Cardinal; Count : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal; overload;
-    function    Decode( Data : PByte; Size : Cardinal; var Instruction: String; CodeOffset : UInt64 = UInt64( 0 ); InstructionBytes : pString = nil; Offset : PUInt64 = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF AssemblyTools} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal; overload;
+    function    Decode( Data : PByte; Size : Cardinal; var Instruction: String; CodeOffset : UInt64 = UInt64( 0 ); InstructionBytes : pString = nil; Offset : PUInt64 = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF AssemblyTools} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : Cardinal; overload;
     function    Decode( Data : string; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : boolean; overload;
     function    Decode( Data : TStrings; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : boolean; overload;
 
@@ -567,6 +572,10 @@ type
     function    PointerScan( Data : TMemoryStream; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
     function    ReferenceScan( Code : PByte; Size : Cardinal; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
     function    ReferenceScan( Data : TMemoryStream; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+
+// MS
+    function    AssemblyScan( Code : PByte; Size : Cardinal; Assembly : String; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+    function    AssemblyScan( Data : TMemoryStream; Assembly : String; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
     function    FindInstruction( Data : PByte; Size : Cardinal; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
     function    FindInstruction( Data : TMemoryStream; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
   end;
@@ -598,6 +607,11 @@ procedure Test_Assemble( AOutput : TStringList; RIP : UInt64 = UInt64( $00001248
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 implementation
 
+{$IF CompilerVersion >= 1} // XE // MS !!!
+uses
+  RegularExpressions;
+{$IFEND}
+
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 constructor TIcedDecoder.Create( Bitness : TIcedBitness = bt64 );
 begin
@@ -616,7 +630,7 @@ end;
 
 destructor TIcedDecoder.Destroy;
 begin
-  if Assigned( fHandle ) then
+  if ( fHandle <> nil ) then
     IcedFreeMemory( fHandle );
 
   inherited;
@@ -625,7 +639,7 @@ end;
 function TIcedDecoder.GetHandle : Pointer;
 begin
   result := nil;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := fHandle;
 end;
@@ -633,7 +647,7 @@ end;
 function TIcedDecoder.GetBitness : TIcedBitness;
 begin
   result := bt16;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := fBitness;
 //  result := TIcedBitness( Decoder_GetBitness( fHandle ) );
@@ -641,11 +655,11 @@ end;
 
 procedure TIcedDecoder.SetBitness( Value : TIcedBitness );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   fBitness := Value;
 
-  if Assigned( fHandle ) then
+  if ( fHandle <> nil ) then
     begin
     IcedFreeMemory( fHandle );
     fHandle := nil;
@@ -654,11 +668,11 @@ end;
 
 procedure TIcedDecoder.SetData( Data : PByte; Size : NativeUInt; IP : UInt64 = UInt64( 0 ); Options : Cardinal = doNONE );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   if NOT uIced.Imports.IsInitDLL then
     Exit;
-  if Assigned( fHandle ) then
+  if ( fHandle <> nil ) then
     IcedFreeMemory( fHandle );
 
   if ( fData = Data ) AND ( fSize = 0 ) then
@@ -681,9 +695,9 @@ end;
 function TIcedDecoder.CanDecode : Boolean;
 begin
   result := False;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   result := Decoder_CanDecode( fHandle );
 end;
@@ -693,9 +707,9 @@ begin
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   result := 0;
   {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   result := Decoder_GetIP( fHandle );
@@ -704,9 +718,9 @@ end;
 
 procedure TIcedDecoder.SetIP( Value : UInt64 );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   Decoder_SetIP( fHandle, Value );
 end;
@@ -716,9 +730,9 @@ begin
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   result := 0;
   {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   {$IFDEF DECODER_LOCAL_POSITION}
@@ -731,9 +745,9 @@ end;
 
 procedure TIcedDecoder.SetPosition( Value : NativeUInt );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
 
   {$IFDEF DECODER_LOCAL_POSITION}
@@ -755,9 +769,9 @@ begin
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   result := 0;
   {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   result := fSize;
@@ -768,11 +782,11 @@ end;
 function TIcedDecoder.GetInstructionFirstByte : PByte;
 begin
   result := nil;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
-  if NOT Assigned( fData ) OR ( fSize = 0 ) then
+  if ( fData = nil ) OR ( fSize = 0 ) then
     Exit;
 
   {$IFDEF DECODER_LOCAL_POSITION}
@@ -789,11 +803,11 @@ end;
 function TIcedDecoder.GetCurrentByte : PByte;
 begin
   result := nil;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
-  if NOT Assigned( fData ) OR ( fSize = 0 ) then
+  if ( fData = nil ) OR ( fSize = 0 ) then
     Exit;
 
   {$IFDEF DECODER_LOCAL_POSITION}
@@ -806,21 +820,21 @@ end;
 function TIcedDecoder.GetLastError : TDecoderError;
 begin
   result := deNone;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   result := Decoder_GetLastError( fHandle );
 end;
 
 procedure TIcedDecoder.Decode( var Instruction : TInstruction );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     begin
     FillChar( Instruction, SizeOf( Instruction ), 0 );
     Exit;
     end;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     begin
     FillChar( Instruction, SizeOf( Instruction ), 0 );
     Exit;
@@ -851,13 +865,13 @@ const
 var
   Offsets : TConstantOffsets;
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     begin
     FillChar( Instruction, SizeOf( Instruction ), 0 );
 //    FillChar( Detail, SizeOf( Detail ), 0 );
     Exit;
     end;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     begin
     FillChar( Instruction, SizeOf( Instruction ), 0 );
 //    FillChar( Detail, SizeOf( Detail ), 0 );
@@ -943,9 +957,9 @@ end;
 procedure TIcedDecoder.GetConstantOffsets( var Instruction : TInstruction; var ConstantOffsets : TConstantOffsets );
 begin
   FillChar( ConstantOffsets, SizeOf( ConstantOffsets ), 0 );
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   Decoder_GetConstantOffsets( fHandle, Instruction, ConstantOffsets );
 end;
@@ -963,7 +977,7 @@ end;
 
 destructor TIcedEncoder.Destroy;
 begin
-  if Assigned( fHandle ) then
+  if ( fHandle <> nil ) then
     IcedFreeMemory( fHandle );
 
   inherited;
@@ -972,7 +986,7 @@ end;
 function TIcedEncoder.GetHandle : Pointer;
 begin
   result := nil;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := fHandle;
 end;
@@ -980,7 +994,7 @@ end;
 function TIcedEncoder.GetBitness : TIcedBitness;
 begin
   result := bt16;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := fBitness;
 //  result := TIcedBitness( Encoder_GetBitness( fHandle ) );
@@ -988,11 +1002,11 @@ end;
 
 procedure TIcedEncoder.SetBitness( Value : TIcedBitness );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   fBitness := Value;
 
-  if Assigned( fHandle ) then
+  if ( fHandle <> nil ) then
     begin
     IcedFreeMemory( fHandle );
     fHandle := nil;
@@ -1004,7 +1018,7 @@ begin
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   result := 0;
   {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   result := fCapacity;
@@ -1013,13 +1027,13 @@ end;
 
 procedure TIcedEncoder.SetCapacity( Value : NativeUInt );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   fCapacity := Value;
   {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
 
-  if Assigned( fHandle ) then
+  if ( fHandle <> nil ) then
     begin
     IcedFreeMemory( fHandle );
     fHandle := nil;
@@ -1028,11 +1042,11 @@ end;
 
 procedure TIcedEncoder.Encode( var Instruction : TInstruction );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   if NOT uIced.Imports.IsInitDLL then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     fHandle := Encoder_Create( Cardinal( fBitness ), fCapacity );
 
   Encoder_Encode( fHandle, Instruction );
@@ -1040,9 +1054,9 @@ end;
 
 procedure TIcedEncoder.Write( Byte : Byte );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   Encoder_WriteByte( fHandle, Byte );
 end;
@@ -1051,9 +1065,9 @@ function TIcedEncoder.GetBuffer( Buffer : PByte; Size : NativeUInt ) : Boolean;
 begin
   result := False;
   FillChar( Buffer^, Size, 0 );
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   result := Encoder_GetBuffer( fHandle, Buffer, Size );
 end;
@@ -1062,9 +1076,9 @@ end;
 function TIcedEncoder.SetBuffer( Buffer : PByte; Size : NativeUInt ) : Boolean;
 begin
   result := False;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     fHandle := Encoder_Create( Cardinal( fBitness ) );
   FillChar( Buffer^, Size, 0 );
   result := Encoder_SetBuffer( fHandle, Buffer, Size );
@@ -1074,9 +1088,9 @@ end;
 procedure TIcedEncoder.GetConstantOffsets( var ConstantOffsets : TConstantOffsets );
 begin
   FillChar( ConstantOffsets, SizeOf( ConstantOffsets ), 0 );
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   Encoder_GetConstantOffsets( fHandle, ConstantOffsets );
 end;
@@ -1084,16 +1098,16 @@ end;
 function TIcedEncoder.GetPreventVex2 : Boolean;
 begin
   result := False;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := Encoder_GetPreventVex2( fHandle );
 end;
 
 procedure TIcedEncoder.SetPreventVex2( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   {result := }Encoder_SetPreventVex2( fHandle, Value );
 end;
@@ -1101,16 +1115,16 @@ end;
 function TIcedEncoder.GetVexWig : Cardinal;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := Encoder_GetVexWig( fHandle );
 end;
 
 procedure TIcedEncoder.SetVexWig( Value : Cardinal );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   {result := }Encoder_SetVexWig( fHandle, Value );
 end;
@@ -1118,16 +1132,16 @@ end;
 function TIcedEncoder.GetVexLig : Cardinal;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := Encoder_GetVexLig( fHandle );
 end;
 
 procedure TIcedEncoder.SetVexLig( Value : Cardinal );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   {result := }Encoder_SetVexLig( fHandle, Value );
 end;
@@ -1135,16 +1149,16 @@ end;
 function TIcedEncoder.GetEvexWig : Cardinal;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := Encoder_GetEvexWig( fHandle );
 end;
 
 procedure TIcedEncoder.SetEvexWig( Value : Cardinal );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   {result := }Encoder_SetEvexWig( fHandle, Value );
 end;
@@ -1152,16 +1166,16 @@ end;
 function TIcedEncoder.GetEvexLig : Cardinal;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := Encoder_GetEvexLig( fHandle );
 end;
 
 procedure TIcedEncoder.SetEvexLig( Value : Cardinal );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   {result := }Encoder_SetEvexLig( fHandle, Value );
 end;
@@ -1169,16 +1183,16 @@ end;
 function TIcedEncoder.GetMvexWig : Cardinal;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := Encoder_GetMvexWig( fHandle );
 end;
 
 procedure TIcedEncoder.SetMvexWig( Value : Cardinal );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   {result := }Encoder_SetMvexWig( fHandle, Value );
 end;
@@ -1194,7 +1208,7 @@ end;
 
 destructor TIcedBlockEncoder.Destroy;
 begin
-  if Assigned( fMemory ) then
+  if ( fMemory <> nil ) then
     IcedFreeMemory( fMemory );
 
   inherited;
@@ -1203,7 +1217,7 @@ end;
 function TIcedBlockEncoder.GetBitness : TIcedBitness;
 begin
   result := bt16;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := fBitness;
 //  result := TIcedBitness( Decoder_GetBitness( fHandle ) );
@@ -1212,33 +1226,33 @@ end;
 function TIcedBlockEncoder.GetOptions : Cardinal;
 begin
   result := beoNONE;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := fOptions;
 end;
 
 procedure TIcedBlockEncoder.SetOptions( Value : Cardinal );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   fOptions := Value;
 end;
 
 procedure TIcedBlockEncoder.SetBitness( Value : TIcedBitness );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   fBitness := Value;
 end;
 
 procedure TIcedBlockEncoder.Encode( RIP : UInt64; var Instructions : TInstruction; Count : NativeUInt; var Results : TBlockEncoderResult );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   if NOT uIced.Imports.IsInitDLL then
     Exit;
 
-  if Assigned( fMemory ) then
+  if ( fMemory <> nil ) then
     IcedFreeMemory( fMemory );
   fMemory := BlockEncoder( Cardinal( fBitness ), RIP, Instructions, Count, Results, fOptions );
 end;
@@ -1250,9 +1264,9 @@ end;
 
 procedure TIcedBlockEncoder.Clear;
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if Assigned( fMemory ) then
+  if ( fMemory <> nil ) then
     begin
     IcedFreeMemory( fMemory );
     fMemory := nil
@@ -1272,7 +1286,7 @@ end;
 
 destructor TInstructionInfoFactory.Destroy;
 begin
-  if Assigned( fHandle ) then
+  if ( fHandle <> nil ) then
     IcedFreeMemory( fHandle );
 
   inherited;
@@ -1281,7 +1295,7 @@ end;
 function TInstructionInfoFactory.GetHandle : Pointer;
 begin
   result := nil;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := fHandle;
 end;
@@ -1289,14 +1303,14 @@ end;
 function TInstructionInfoFactory.GetOptions : Cardinal;
 begin
   result := beoNONE;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := fOptions;
 end;
 
 procedure TInstructionInfoFactory.SetOptions( Value : Cardinal );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   fOptions := Value;
 end;
@@ -1304,9 +1318,9 @@ end;
 procedure TInstructionInfoFactory.Info( var Instruction: TInstruction; var InstructionInfo : TInstructionInfo );
 begin
   FillChar( InstructionInfo, SizeOf( InstructionInfo ), 0 );
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   {result := }InstructionInfoFactory_Info( fHandle, Instruction, InstructionInfo, fOptions );
 end;
@@ -1315,19 +1329,19 @@ end;
 {$IFDEF AssemblyTools}
 function SymbolResolverCallback( var Instruction: TInstruction; Operand: Cardinal; InstructionOperand : Cardinal; Address: UInt64; Size: Cardinal; UserData : Pointer ) : PAnsiChar; cdecl;
 begin
-  if NOT Assigned( userData ) then
+  if ( userData = nil ) then
     begin
     result := '';
     Exit;
     end;
 
-  if Assigned( TIcedFormatter( UserData ).fSymbolHandler ) then
+  if ( TIcedFormatter( UserData ).fSymbolHandler <> nil ) then
     begin
     result := PAnsiChar( AnsiString( TIcedFormatter( UserData ).fSymbolHandler.Symbol( Address ) ) );
-    if ( result = '' ) AND Assigned( TIcedFormatter( UserData ).fSymbolResolver ) then
+    if ( result = '' ) AND ( @TIcedFormatter( UserData ).fSymbolResolver <> nil ) then
       result := PAnsiChar( TIcedFormatter( UserData ).fSymbolResolver( Instruction, Operand, InstructionOperand, Address, Size, UserData ) );
     end
-  else if Assigned( TIcedFormatter( UserData ).fSymbolResolver ) then
+  else if ( @TIcedFormatter( UserData ).fSymbolResolver <> nil ) then
     result := PAnsiChar( TIcedFormatter( UserData ).fSymbolResolver( Instruction, Operand, InstructionOperand, Address, Size, UserData ) )
   else
     result := '';
@@ -1355,9 +1369,9 @@ end;
 
 destructor TIcedFormatter.Destroy;
 begin
-  if Assigned( fOutputHandle ) then
+  if ( fOutputHandle <> nil ) then
     IcedFreeMemory( fOutputHandle );
-  if Assigned( fHandle ) then
+  if ( fHandle <> nil ) then
     IcedFreeMemory( fHandle );
 
   inherited;
@@ -1368,16 +1382,16 @@ var
   SymbolResolver : TSymbolResolverCallback;
   tOptions       : TIcedFormatterSettings;
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   if NOT uIced.Imports.IsInitDLL then
     Exit;
 
-  if Assigned( fHandle ) then
+  if ( fHandle <> nil ) then
     IcedFreeMemory( fHandle );
 
   {$IFDEF AssemblyTools}
-  if fShowSymbols AND ( Assigned( fSymbolResolver ) OR Assigned( fSymbolHandler ) ) then
+  if fShowSymbols AND ( ( @fSymbolResolver <> nil ) OR ( fSymbolHandler <> nil ) ) then
     SymbolResolver := SymbolResolverCallback
   else
   {$ENDIF}
@@ -1411,7 +1425,7 @@ end;
 
 procedure TIcedFormatter.DefaultSettings;
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   CreateHandle;
 end;
@@ -1419,14 +1433,14 @@ end;
 function TIcedFormatter.GetHandle : Pointer;
 begin
   result := nil;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := fHandle;
 end;
 
 procedure TIcedFormatter.SetType( Value : TIcedFormatterType );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   if ( fType = Value ) then
     Exit;
@@ -1438,14 +1452,14 @@ end;
 function TIcedFormatter.GetSymbolResolver : TSymbolResolverCallback;
 begin
   result := nil;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := fSymbolResolver;
 end;
 
 procedure TIcedFormatter.SetSymbolResolver( Value : TSymbolResolverCallback );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   if ( @fSymbolResolver = @Value ) then
     Exit;
@@ -1457,14 +1471,14 @@ end;
 function TIcedFormatter.GetOptionsProvider : TFormatterOptionsProviderCallback;
 begin
   result := nil;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := fOptionsProvider;
 end;
 
 procedure TIcedFormatter.SetOptionsProvider( Value : TFormatterOptionsProviderCallback );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   if ( @fOptionsProvider = @Value ) then
     Exit;
@@ -1479,14 +1493,14 @@ end;
 function TIcedFormatter.GetFormatterOutput : TFormatterOutputCallback;
 begin
   result := nil;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   result := fFormatterOutput;
 end;
 
 procedure TIcedFormatter.SetFormatterOutput( Value : TFormatterOutputCallback );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   if ( @fFormatterOutput = @Value ) then
     Exit;
@@ -1495,9 +1509,9 @@ begin
     Exit;
 
   fFormatterOutput := Value;
-  if Assigned( fOutputHandle ) then
+  if ( fOutputHandle <> nil ) then
     IcedFreeMemory( fOutputHandle );
-  if Assigned( Value ) then
+  if ( @Value <> nil ) then
     fOutputHandle := FormatterOutput_Create( Value, Pointer( self ) )
   else
     fOutputHandle := nil;
@@ -1508,10 +1522,10 @@ var
   tOutput : Array [ 0..255 ] of AnsiChar;
 begin
   result := '';
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
 
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
 
   FillChar( tOutput[ 0 ], Length( tOutput ), 0 );
@@ -1530,18 +1544,18 @@ end;
 
 procedure TIcedFormatter.Format( var Instruction: TInstruction; AOutput: PAnsiChar; Size : NativeUInt );
 begin
-  if NOT Assigned( AOutput ) then
+  if ( AOutput = nil ) then
     Exit;
   if ( Size = 0 ) then
     Exit;
 
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     begin
     FillChar( AOutput^, Size, 0 );
     Exit;
     end;
 
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     begin
     FillChar( AOutput^, Size, 0 );
     Exit;
@@ -1561,13 +1575,13 @@ end;
 
 procedure TIcedFormatter.Format( var Instruction: TInstruction ); // TFormatterOutputCallback
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
 
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
 
-  if NOT Assigned( fOutputHandle ) then
+  if ( fOutputHandle = nil ) then
     Exit;
 
   case fType of
@@ -1586,7 +1600,7 @@ var
   C : Array [ 0..255 ] of AnsiChar;
 begin
   FillChar( result, SizeOf( result ), 0 );
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   if NOT uIced.Imports.IsInitDLL then
     Exit;
@@ -1706,7 +1720,7 @@ end;
 
 procedure TIcedFormatter.SetOptions( Value : TIcedFormatterSettings );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
 
   // Masm
@@ -1787,10 +1801,10 @@ end;
 
 procedure TIcedFormatter.SettingsToStringList( Settings : TIcedFormatterSettings; var StrL : TStringList );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
 
-  if NOT Assigned( StrL ) then
+  if ( StrL = nil ) then
     Exit;
   StrL.Clear;
 
@@ -1868,14 +1882,14 @@ var
   tmp : TIcedFormatterSettings;
 begin
   result := False;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
 
-  if NOT Assigned( StrL ) then
+  if ( StrL = nil ) then
     Exit;
   StrL.Delimiter := '=';
 
-  if NOT Assigned( Settings ) then
+  if ( Settings = nil ) then
     Settings := @tmp;
 
   Settings^.AddDsPrefix32 := Boolean( StrToIntDef( StrL.Values[ 'AddDsPrefix32' ], Byte( fOptions.AddDsPrefix32 ) ) );
@@ -1952,9 +1966,9 @@ end;
 
 procedure TIcedFormatter.SetCapstoneOptions;
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
 
   ShowSymbolAddress                := True;
@@ -1970,9 +1984,9 @@ end;
 function TIcedFormatter.GetAddDsPrefix32 : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if NOT ( fType in [ ftMasm, ftCapstone ] ) then
     Exit;
@@ -1983,9 +1997,9 @@ end;
 
 procedure TIcedFormatter.SetAddDsPrefix32( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if NOT ( fType in [ ftMasm, ftCapstone ] ) then
     Exit;
@@ -1999,9 +2013,9 @@ end;
 function TIcedFormatter.GetSymbolDisplacementInBrackets : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if NOT ( fType in [ ftMasm, ftCapstone ] ) then
     Exit;
@@ -2012,9 +2026,9 @@ end;
 
 procedure TIcedFormatter.SetSymbolDisplacementInBrackets( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if NOT ( fType in [ ftMasm, ftCapstone ] ) then
     Exit;
@@ -2028,9 +2042,9 @@ end;
 function TIcedFormatter.GetDisplacementInBrackets : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if NOT ( fType in [ ftMasm, ftCapstone ] ) then
     Exit;
@@ -2041,9 +2055,9 @@ end;
 
 procedure TIcedFormatter.SetDisplacementInBrackets( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if NOT ( fType in [ ftMasm, ftCapstone ] ) then
     Exit;
@@ -2058,9 +2072,9 @@ end;
 function TIcedFormatter.GetShowSignExtendedImmediateSize : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType <> ftNasm ) then
     Exit;
@@ -2071,9 +2085,9 @@ end;
 
 procedure TIcedFormatter.SetShowSignExtendedImmediateSize( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType <> ftNasm ) then
     Exit;
@@ -2088,9 +2102,9 @@ end;
 function TIcedFormatter.GetNakedRegisters : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType <> ftGas ) then
     Exit;
@@ -2101,9 +2115,9 @@ end;
 
 procedure TIcedFormatter.SetNakedRegisters( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType <> ftGas ) then
     Exit;
@@ -2117,9 +2131,9 @@ end;
 function TIcedFormatter.GetShowMnemonicSizeSuffix : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType <> ftGas ) then
     Exit;
@@ -2130,9 +2144,9 @@ end;
 
 procedure TIcedFormatter.SetShowMnemonicSizeSuffix( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType <> ftGas ) then
     Exit;
@@ -2146,9 +2160,9 @@ end;
 function TIcedFormatter.GetSpaceAfterMemoryOperandComma : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType <> ftGas ) then
     Exit;
@@ -2159,9 +2173,9 @@ end;
 
 procedure TIcedFormatter.SetSpaceAfterMemoryOperandComma( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType <> ftGas ) then
     Exit;
@@ -2176,9 +2190,9 @@ end;
 function TIcedFormatter.GetUseHexPrefix : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType <> ftSpecialized ) then
     Exit;
@@ -2189,9 +2203,9 @@ end;
 
 procedure TIcedFormatter.SetUseHexPrefix( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType <> ftSpecialized ) then
     Exit;
@@ -2205,9 +2219,9 @@ end;
 function TIcedFormatter.GetAlwaysShowMemorySize : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType <> ftSpecialized ) then
     Exit;
@@ -2218,9 +2232,9 @@ end;
 
 procedure TIcedFormatter.SetAlwaysShowMemorySize( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType <> ftSpecialized ) then
     Exit;
@@ -2235,9 +2249,9 @@ end;
 function TIcedFormatter.GetSpaceAfterOperandSeparator : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
 
   result := fOptions.SpaceAfterOperandSeparator;
@@ -2249,9 +2263,9 @@ end;
 
 procedure TIcedFormatter.SetSpaceAfterOperandSeparator( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
 
   if ( fOptions.SpaceAfterOperandSeparator = Value ) then
@@ -2267,9 +2281,9 @@ end;
 function TIcedFormatter.GetAlwaysShowSegmentRegister : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
 
   result := fOptions.AlwaysShowSegmentRegister;
@@ -2282,9 +2296,9 @@ end;
 
 procedure TIcedFormatter.SetAlwaysShowSegmentRegister( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fOptions.AlwaysShowSegmentRegister = Value ) then
     Exit;
@@ -2299,9 +2313,9 @@ end;
 function TIcedFormatter.GetUsePseudoOps : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
 
   result := fOptions.UsePseudoOps;
@@ -2314,9 +2328,9 @@ end;
 
 procedure TIcedFormatter.SetUsePseudoOps( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fOptions.UsePseudoOps = Value ) then
     Exit;
@@ -2331,9 +2345,9 @@ end;
 function TIcedFormatter.GetRipRelativeAddresses : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
 
   result := fOptions.RipRelativeAddresses;
@@ -2346,9 +2360,9 @@ end;
 
 procedure TIcedFormatter.SetRipRelativeAddresses( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fOptions.RipRelativeAddresses = Value ) then
     Exit;
@@ -2363,9 +2377,9 @@ end;
 function TIcedFormatter.GetShowSymbolAddress : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
 
   result := fOptions.ShowSymbolAddress;
@@ -2378,9 +2392,9 @@ end;
 
 procedure TIcedFormatter.SetShowSymbolAddress( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fOptions.ShowSymbolAddress = Value ) then
     Exit;
@@ -2395,9 +2409,9 @@ end;
 function TIcedFormatter.GetUpperCaseHex : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
 
   result := fOptions.UpperCaseHex;
@@ -2410,9 +2424,9 @@ end;
 
 procedure TIcedFormatter.SetUpperCaseHex( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fOptions.UpperCaseHex = Value ) then
     Exit;
@@ -2428,9 +2442,9 @@ end;
 function TIcedFormatter.GetUpperCasePrefixes : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2441,9 +2455,9 @@ end;
 
 procedure TIcedFormatter.SetUpperCasePrefixes( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2457,9 +2471,9 @@ end;
 function TIcedFormatter.GetUpperCaseMnemonics : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2470,9 +2484,9 @@ end;
 
 procedure TIcedFormatter.SetUpperCaseMnemonics( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2486,9 +2500,9 @@ end;
 function TIcedFormatter.GetUpperCaseRegisters : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2499,9 +2513,9 @@ end;
 
 procedure TIcedFormatter.SetUpperCaseRegisters( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2515,9 +2529,9 @@ end;
 function TIcedFormatter.GetUpperCaseKeyWords : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2528,9 +2542,9 @@ end;
 
 procedure TIcedFormatter.SetUpperCaseKeyWords( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2544,9 +2558,9 @@ end;
 function TIcedFormatter.GetUpperCaseDecorators : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2557,9 +2571,9 @@ end;
 
 procedure TIcedFormatter.SetUpperCaseDecorators( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2573,9 +2587,9 @@ end;
 function TIcedFormatter.GetUpperCaseEverything : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2586,9 +2600,9 @@ end;
 
 procedure TIcedFormatter.SetUpperCaseEverything( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2602,9 +2616,9 @@ end;
 function TIcedFormatter.GetFirstOperandCharIndex : Cardinal;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2615,9 +2629,9 @@ end;
 
 procedure TIcedFormatter.SetFirstOperandCharIndex( Value : Cardinal );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2631,9 +2645,9 @@ end;
 function TIcedFormatter.GetTabSize : Cardinal;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2644,9 +2658,9 @@ end;
 
 procedure TIcedFormatter.SetTabSize( Value : Cardinal );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2660,9 +2674,9 @@ end;
 function TIcedFormatter.GetSpaceAfterMemoryBracket : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2673,9 +2687,9 @@ end;
 
 procedure TIcedFormatter.SetSpaceAfterMemoryBracket( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2689,9 +2703,9 @@ end;
 function TIcedFormatter.GetSpaceBetweenMemoryAddOperators : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2702,9 +2716,9 @@ end;
 
 procedure TIcedFormatter.SetSpaceBetweenMemoryAddOperators( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2718,9 +2732,9 @@ end;
 function TIcedFormatter.GetSpaceBetweenMemoryMulOperators : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2731,9 +2745,9 @@ end;
 
 procedure TIcedFormatter.SetSpaceBetweenMemoryMulOperators( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2747,9 +2761,9 @@ end;
 function TIcedFormatter.GetScaleBeforeIndex : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2760,9 +2774,9 @@ end;
 
 procedure TIcedFormatter.SetScaleBeforeIndex( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2776,9 +2790,9 @@ end;
 function TIcedFormatter.GetAlwaysShowScale : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2789,9 +2803,9 @@ end;
 
 procedure TIcedFormatter.SetAlwaysShowScale( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2805,9 +2819,9 @@ end;
 function TIcedFormatter.GetShowZeroDisplacements : Boolean;
 begin
   result := False;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2818,9 +2832,9 @@ end;
 
 procedure TIcedFormatter.SetShowZeroDisplacements( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2836,9 +2850,9 @@ function TIcedFormatter.GetHexPrefix : AnsiString;
 //  C : Array [ 0..255 ] of AnsiChar;
 begin
   result := '';
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2850,9 +2864,9 @@ end;
 
 procedure TIcedFormatter.SetHexPrefix( Value : AnsiString );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2868,9 +2882,9 @@ function TIcedFormatter.GetHexSuffix : AnsiString;
 //  C : Array [ 0..255 ] of AnsiChar;
 begin
   result := '';
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2882,9 +2896,9 @@ end;
 
 procedure TIcedFormatter.SetHexSuffix( Value : AnsiString );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2898,9 +2912,9 @@ end;
 function TIcedFormatter.GetHexDigitGroupSize : Cardinal;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2911,9 +2925,9 @@ end;
 
 procedure TIcedFormatter.SetHexDigitGroupSize( Value : Cardinal );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2929,9 +2943,9 @@ function TIcedFormatter.GetDecimalPrefix : AnsiString;
 //  C : Array [ 0..255 ] of AnsiChar;
 begin
   result := '';
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2943,9 +2957,9 @@ end;
 
 procedure TIcedFormatter.SetDecimalPrefix( Value : AnsiString );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2961,9 +2975,9 @@ function TIcedFormatter.GetDecimalSuffix : AnsiString;
 //  C : Array [ 0..255 ] of AnsiChar;
 begin
   result := '';
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2975,9 +2989,9 @@ end;
 
 procedure TIcedFormatter.SetDecimalSuffix( Value : AnsiString );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -2991,9 +3005,9 @@ end;
 function TIcedFormatter.GetDecimalDigitGroupSize : Cardinal;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3004,9 +3018,9 @@ end;
 
 procedure TIcedFormatter.SetDecimalDigitGroupSize( Value : Cardinal );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3022,9 +3036,9 @@ function TIcedFormatter.GetOctalPrefix : AnsiString;
 //  C : Array [ 0..255 ] of AnsiChar;
 begin
   result := '';
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3036,9 +3050,9 @@ end;
 
 procedure TIcedFormatter.SetOctalPrefix( Value : AnsiString );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3054,9 +3068,9 @@ function TIcedFormatter.GetOctalSuffix : AnsiString;
 //  C : Array [ 0..255 ] of AnsiChar;
 begin
   result := '';
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3068,9 +3082,9 @@ end;
 
 procedure TIcedFormatter.SetOctalSuffix( Value : AnsiString );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3084,9 +3098,9 @@ end;
 function TIcedFormatter.GetOctalDigitGroupSize : Cardinal;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3097,9 +3111,9 @@ end;
 
 procedure TIcedFormatter.SetOctalDigitGroupSize( Value : Cardinal );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3115,9 +3129,9 @@ function TIcedFormatter.GetBinaryPrefix : AnsiString;
 //  C : Array [ 0..255 ] of AnsiChar;
 begin
   result := '';
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3129,9 +3143,9 @@ end;
 
 procedure TIcedFormatter.SetBinaryPrefix( Value : AnsiString );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3147,9 +3161,9 @@ function TIcedFormatter.GetBinarySuffix : AnsiString;
 //  C : Array [ 0..255 ] of AnsiChar;
 begin
   result := '';
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3161,9 +3175,9 @@ end;
 
 procedure TIcedFormatter.SetBinarySuffix( Value : AnsiString );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3177,9 +3191,9 @@ end;
 function TIcedFormatter.GetBinaryDigitGroupSize : Cardinal;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3190,9 +3204,9 @@ end;
 
 procedure TIcedFormatter.SetBinaryDigitGroupSize( Value : Cardinal );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3208,9 +3222,9 @@ function TIcedFormatter.GetDigitSeparator : AnsiString;
 //  C : Array [ 0..255 ] of AnsiChar;
 begin
   result := '';
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3222,9 +3236,9 @@ end;
 
 procedure TIcedFormatter.SetDigitSeparator( Value : AnsiString );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3238,9 +3252,9 @@ end;
 function TIcedFormatter.GetLeadingZeros : Boolean;
 begin
   result := False;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3251,9 +3265,9 @@ end;
 
 procedure TIcedFormatter.SetLeadingZeros( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3267,9 +3281,9 @@ end;
 function TIcedFormatter.GetSmallHexNumbersInDecimal : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3280,9 +3294,9 @@ end;
 
 procedure TIcedFormatter.SetSmallHexNumbersInDecimal( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3296,9 +3310,9 @@ end;
 function TIcedFormatter.GetAddLeadingZeroToHexNumbers : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3309,9 +3323,9 @@ end;
 
 procedure TIcedFormatter.SetAddLeadingZeroToHexNumbers( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3325,9 +3339,9 @@ end;
 function TIcedFormatter.GetNumberBase : TNumberBase;
 begin
   result := nbHexadecimal;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3338,9 +3352,9 @@ end;
 
 procedure TIcedFormatter.SetNumberBase( Value : TNumberBase );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3354,9 +3368,9 @@ end;
 function TIcedFormatter.GetBranchLeadingZeros : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3367,9 +3381,9 @@ end;
 
 procedure TIcedFormatter.SetBranchLeadingZeros( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3383,9 +3397,9 @@ end;
 function TIcedFormatter.GetSignedImmediateOperands : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3396,9 +3410,9 @@ end;
 
 procedure TIcedFormatter.SetSignedImmediateOperands( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3412,9 +3426,9 @@ end;
 function TIcedFormatter.GetSignedMemoryDisplacements : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3425,9 +3439,9 @@ end;
 
 procedure TIcedFormatter.SetSignedMemoryDisplacements( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3441,9 +3455,9 @@ end;
 function TIcedFormatter.GetDisplacementLeadingZeros : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3454,9 +3468,9 @@ end;
 
 procedure TIcedFormatter.SetDisplacementLeadingZeros( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3470,9 +3484,9 @@ end;
 function TIcedFormatter.GetMemorySizeOptions : TMemorySizeOptions;
 begin
   result := msoDefault;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3483,9 +3497,9 @@ end;
 
 procedure TIcedFormatter.SetMemorySizeOptions( Value : TMemorySizeOptions );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3499,9 +3513,9 @@ end;
 function TIcedFormatter.GetShowBranchSize : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3512,9 +3526,9 @@ end;
 
 procedure TIcedFormatter.SetShowBranchSize( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3528,9 +3542,9 @@ end;
 function TIcedFormatter.GetPreferST0 : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3541,9 +3555,9 @@ end;
 
 procedure TIcedFormatter.SetPreferST0( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3557,9 +3571,9 @@ end;
 function TIcedFormatter.GetShowUselessPrefixes : Boolean;
 begin
   result := false;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3570,9 +3584,9 @@ end;
 
 procedure TIcedFormatter.SetShowUselessPrefixes( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3586,9 +3600,9 @@ end;
 function TIcedFormatter.GetCC_b : TCC_b;
 begin
   result := b;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3599,9 +3613,9 @@ end;
 
 procedure TIcedFormatter.SetCC_b( Value : TCC_b );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3615,9 +3629,9 @@ end;
 function TIcedFormatter.GetCC_ae : TCC_ae;
 begin
   result := ae;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3628,9 +3642,9 @@ end;
 
 procedure TIcedFormatter.SetCC_ae( Value : TCC_ae );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3644,9 +3658,9 @@ end;
 function TIcedFormatter.GetCC_e : TCC_e;
 begin
   result := e;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3657,9 +3671,9 @@ end;
 
 procedure TIcedFormatter.SetCC_e( Value : TCC_e );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3673,9 +3687,9 @@ end;
 function TIcedFormatter.GetCC_ne : TCC_ne;
 begin
   result := ne;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3686,9 +3700,9 @@ end;
 
 procedure TIcedFormatter.SetCC_ne( Value : TCC_ne );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3702,9 +3716,9 @@ end;
 function TIcedFormatter.GetCC_be : TCC_be;
 begin
   result := be;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3715,9 +3729,9 @@ end;
 
 procedure TIcedFormatter.SetCC_be( Value : TCC_be );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3731,9 +3745,9 @@ end;
 function TIcedFormatter.GetCC_a : TCC_a;
 begin
   result := a;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3744,9 +3758,9 @@ end;
 
 procedure TIcedFormatter.SetCC_a( Value : TCC_a );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3760,9 +3774,9 @@ end;
 function TIcedFormatter.GetCC_p : TCC_p;
 begin
   result := p;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3773,9 +3787,9 @@ end;
 
 procedure TIcedFormatter.SetCC_p( Value : TCC_p );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3789,9 +3803,9 @@ end;
 function TIcedFormatter.GetCC_np : TCC_np;
 begin
   result := np;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3802,9 +3816,9 @@ end;
 
 procedure TIcedFormatter.SetCC_np( Value : TCC_np );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3818,9 +3832,9 @@ end;
 function TIcedFormatter.GetCC_l : TCC_l;
 begin
   result := l;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3831,9 +3845,9 @@ end;
 
 procedure TIcedFormatter.SetCC_l( Value : TCC_l );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3847,9 +3861,9 @@ end;
 function TIcedFormatter.GetCC_ge : TCC_ge;
 begin
   result := ge;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3860,9 +3874,9 @@ end;
 
 procedure TIcedFormatter.SetCC_ge( Value : TCC_ge );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3876,9 +3890,9 @@ end;
 function TIcedFormatter.GetCC_le : TCC_le;
 begin
   result := le;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3889,9 +3903,9 @@ end;
 
 procedure TIcedFormatter.SetCC_le( Value : TCC_le );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3905,9 +3919,9 @@ end;
 function TIcedFormatter.GetCC_g : TCC_g;
 begin
   result := g;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3918,9 +3932,9 @@ end;
 
 procedure TIcedFormatter.SetCC_g( Value : TCC_g );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( fHandle ) then
+  if ( fHandle = nil ) then
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
@@ -3934,7 +3948,7 @@ end;
 {$IFDEF AssemblyTools}
 procedure TIcedFormatter.SetSymbolHandler( Value : TSymbolHandler );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   if ( fSymbolHandler = Value ) then
     Exit;
@@ -3948,7 +3962,7 @@ end;
 
 procedure TIcedFormatter.SetShowSymbols( Value : Boolean );
 begin
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   if ( fShowSymbols = Value ) then
     Exit;
@@ -3956,7 +3970,7 @@ begin
     Exit;
 
   fShowSymbols := Value;
-  if Value AND NOT Assigned( fSymbolHandler ) then
+  if Value AND ( fSymbolHandler = nil ) then
     Exit;
   CreateHandle( True{KeepConfiguration} );
 end;
@@ -3987,12 +4001,12 @@ end;
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Decoder
 
-function TIced.DecodeFromFile( FileName : String; Size : Cardinal; Offset : UInt64; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal;
+function TIced.DecodeFromFile( FileName : String; Size : Cardinal; Offset : UInt64; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : Cardinal;
 var
   S : TMemoryStream;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
   if ( FileName = '' ) then
     Exit;
@@ -4005,13 +4019,13 @@ begin
 
   if ( Offset <= S.Size ) then
     S.Position := Offset;
-  result := DecodeFromStream( S, Size, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, CalcJumpLines );
+  result := DecodeFromStream( S, Size, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, CalcJumpLines, CombineNOP );
   S.Free;
 end;
 
-function TIced.DecodeFromStream( Data : TMemoryStream; Size : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal;
+function TIced.DecodeFromStream( Data : TMemoryStream; Size : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : Cardinal;
 begin
-  if NOT Assigned( Data ) then
+  if ( Data = nil ) then
     begin
     result := 0;
     Exit;
@@ -4021,7 +4035,10 @@ begin
   if ( Size > Data.Size-Data.Position ) then
     Size := Data.Size-Data.Position;
 
-  result := Decode( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Size, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, CalcJumpLines );
+  if CombineNOP then
+    result := DecodeCombineNOP( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Size, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, CalcJumpLines )
+  else
+    result := Decode( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Size, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, CalcJumpLines );
 end;
 
 function TIced.Decode( Data : PByte; Size : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal;
@@ -4034,20 +4051,20 @@ var
   S           : String;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( Data ) OR ( Size = 0 ) then
+  if ( Data = nil ) OR ( Size = 0 ) then
     Exit;
 
-//  if Assigned( StrL_Assembly ) then
+//  if ( StrL_Assembly <> nil ) then
 //    StrL_Assembly.Clear;
 
   Decoder.SetData( Data, Size, CodeOffset, DecoderSettings );
 
   {$IFDEF AssemblyTools}
-  if Assigned( Details ) then
+  if ( Details <> nil ) then
     begin
-    if Assigned( StrL_Assembly ) AND Assigned( StrL_Hex ) then
+    if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
       while Decoder.CanDecode do
         begin
@@ -4071,7 +4088,7 @@ begin
         Inc( result, Instruction.len );
         end;
       end
-    else if Assigned( StrL_Assembly ) then
+    else if ( StrL_Assembly <> nil ) then
       begin
       while Decoder.CanDecode do
         begin
@@ -4087,7 +4104,7 @@ begin
         Inc( result, Instruction.len );
         end;
       end
-    else if Assigned( StrL_Hex ) then
+    else if ( StrL_Hex <> nil ) then
       begin
       while Decoder.CanDecode do
         begin
@@ -4130,7 +4147,7 @@ begin
   else
   {$ENDIF AssemblyTools}
     begin
-    if Assigned( StrL_Assembly ) AND Assigned( StrL_Hex ) then
+    if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
       while Decoder.CanDecode do
         begin
@@ -4150,7 +4167,7 @@ begin
         Inc( result, Instruction.len );
         end;
       end
-    else if Assigned( StrL_Assembly ) then
+    else if ( StrL_Assembly <> nil ) then
       begin
       while Decoder.CanDecode do
         begin
@@ -4162,7 +4179,7 @@ begin
         Inc( result, Instruction.len );
         end;
       end
-    else if Assigned( StrL_Hex ) then
+    else if ( StrL_Hex <> nil ) then
       begin
       while Decoder.CanDecode do
         begin
@@ -4192,22 +4209,22 @@ var
   S           : String;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( Data ) OR ( Size = 0 ) then
+  if ( Data = nil ) OR ( Size = 0 ) then
     Exit;
   if ( Count = 0 ) then
     Exit;
 
-//  if Assigned( StrL_Assembly ) then
+//  if ( StrL_Assembly <> nil ) then
 //    StrL_Assembly.Clear;
 
   Decoder.SetData( Data, Size, CodeOffset, DecoderSettings );
 
   {$IFDEF AssemblyTools}
-  if Assigned( Details ) then
+  if ( Details <> nil ) then
     begin
-    if Assigned( StrL_Assembly ) AND Assigned( StrL_Hex ) then
+    if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
       while Decoder.CanDecode AND ( Count > 0 ) do
         begin
@@ -4232,7 +4249,7 @@ begin
         Dec( Count );
         end;
       end
-    else if Assigned( StrL_Assembly ) then
+    else if ( StrL_Assembly <> nil ) then
       begin
       while Decoder.CanDecode AND ( Count > 0 ) do
         begin
@@ -4249,7 +4266,7 @@ begin
         Dec( Count );
         end;
       end
-    else if Assigned( StrL_Hex ) then
+    else if ( StrL_Hex <> nil ) then
       begin
       while Decoder.CanDecode AND ( Count > 0 ) do
         begin
@@ -4294,7 +4311,7 @@ begin
   else
   {$ENDIF AssemblyTools}
     begin
-    if Assigned( StrL_Assembly ) AND Assigned( StrL_Hex ) then
+    if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
       while Decoder.CanDecode AND ( Count > 0 ) do
         begin
@@ -4315,7 +4332,7 @@ begin
         Dec( Count );
         end;
       end
-    else if Assigned( StrL_Assembly ) then
+    else if ( StrL_Assembly <> nil ) then
       begin
       while Decoder.CanDecode AND ( Count > 0 ) do
         begin
@@ -4328,7 +4345,7 @@ begin
         Dec( Count );
         end;
       end
-    else if Assigned( StrL_Hex ) then
+    else if ( StrL_Hex <> nil ) then
       begin
       while Decoder.CanDecode AND ( Count > 0 ) do
         begin
@@ -4349,7 +4366,7 @@ begin
     end;
 end;
 
-function TIced.Decode( Data : PByte; Size : Cardinal; var Instruction: String; CodeOffset : UInt64 = UInt64( 0 ); InstructionBytes : pString = nil; Offset : PUInt64 = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal;
+function TIced.Decode( Data : PByte; Size : Cardinal; var Instruction: String; CodeOffset : UInt64 = UInt64( 0 ); InstructionBytes : pString = nil; Offset : PUInt64 = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : Cardinal;
 var
   StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF};
   StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF};
@@ -4362,24 +4379,28 @@ begin
   {$IFDEF AssemblyTools}
   FillChar( Details, SizeOf( Details ), 0 );
   {$ENDIF AssemblyTools}
-  result := Decode( Data, Size, 1{Count}, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}@Details,{$ENDIF} DecoderSettings, CalcJumpLines );
+
+  if CombineNOP then
+    result := DecodeCombineNOP( Data, Size, 1{Count}, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}@Details,{$ENDIF} DecoderSettings, CalcJumpLines )
+  else
+    result := Decode( Data, Size, 1{Count}, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}@Details,{$ENDIF} DecoderSettings, CalcJumpLines );
   if ( result > 0 ) then
     begin
     Instruction := StrL_Assembly[ 0 ];
-    if Assigned( InstructionBytes ) then
+    if ( InstructionBytes <> nil ) then
       InstructionBytes^ := StrL_Hex[ 0 ];
     {$IFDEF AssemblyTools}
-    if Assigned( Detail ) then
+    if ( Detail <> nil ) then
       Detail^ := Details.Items[ 0 ];
     {$ENDIF AssemblyTools}
     end
   else
     begin
     Instruction := '';
-    if Assigned( InstructionBytes ) then
+    if ( InstructionBytes <> nil ) then
       InstructionBytes^ := '';
     {$IFDEF AssemblyTools}
-    if Assigned( Detail ) then
+    if ( Detail <> nil ) then
       FillChar( Detail^, SizeOf( Detail ), 0 );
     {$ENDIF AssemblyTools}
     end;
@@ -4426,7 +4447,7 @@ function TIced.Decode( Data : TStrings; StrL_Assembly : {$IFNDEF UNICODE}TUnicod
   //    if NOT IsHexChar( sHex[ i ], WildCard ) then
   //      Exit;
 
-      if NOT ( {$IF CompilerVersion >= 22}CharInSet( sHex[ i ],{$ELSE}( sHex[ i ] in{$IFEND} [ '0'..'9' ,'a'..'f', 'A'..'F' ] ) ) then
+      if NOT ( {$IF CompilerVersion >= 20}CharInSet( sHex[ i ],{$ELSE}( sHex[ i ] in{$IFEND} [ '0'..'9' ,'a'..'f', 'A'..'F' ] ) ) then
         Exit;
       end;
 
@@ -4446,23 +4467,23 @@ var
   A, B    : SmallInt;
 begin
   result := false;
-  if Assigned( StrL_Hex ) then
+  if ( StrL_Hex <> nil ) then
     StrL_Hex.Clear;
   {$IFDEF AssemblyTools}
-  if Assigned( Details ) then
+  if ( Details <> nil ) then
     FillChar( Details^, SizeOf( Details^ ), 0 );
   {$ENDIF AssemblyTools}
-  if NOT Assigned( Data ) then
+  if ( Data = nil ) then
     Exit;
   if ( Data.Text = '' ) then
     Exit;
   StrL_Assembly.BeginUpdate;
-  if Assigned( StrL_Assembly ) then
+  if ( StrL_Assembly <> nil ) then
     StrL_Assembly.Clear;
 
   if NOT uIced.Imports.IsInitDLL then
     begin
-    if Assigned( StrL_Assembly ) then
+    if ( StrL_Assembly <> nil ) then
       StrL_Assembly.Add( 'DLL not loaded.' );
     StrL_Assembly.EndUpdate;
     Exit;
@@ -4497,12 +4518,12 @@ begin
     begin
     if ( StrL_In[ i ] = '' ) then
       begin
-      if Assigned( StrL_Hex ) then
+      if ( StrL_Hex <> nil ) then
         StrL_Hex.Add( '' );
-      if Assigned( StrL_Assembly ) then
+      if ( StrL_Assembly <> nil ) then
         StrL_Assembly.Add( '' );
       {$IFDEF AssemblyTools}
-      if Assigned( Details ) then
+      if ( Details <> nil ) then
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
@@ -4552,12 +4573,12 @@ begin
 //    if ( Copy( StrL[ i ], 1, 2 ) = '//' ) OR ( Copy( StrL[ i ], 1, 2 ) = '/*' ) OR ( Copy( StrL[ i ], 1, 2 ) = '{' ) OR ( Copy( StrL[ i ], 1, 2 ) = '(*' ) then
     if NOT IsHex( sHex ) then
       begin
-      if Assigned( StrL_Hex ) then
+      if ( StrL_Hex <> nil ) then
         StrL_Hex.Add( StrL_In[ i ] );
-      if Assigned( StrL_Assembly ) then
+      if ( StrL_Assembly <> nil ) then
         StrL_Assembly.Add( StrL_In[ i ] );
       {$IFDEF AssemblyTools}
-      if Assigned( Details ) then
+      if ( Details <> nil ) then
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
@@ -4602,7 +4623,7 @@ begin
     if ( sCom <> '' ) then
       begin
       StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + sCom;
-      if Assigned( StrL_Hex ) then
+      if ( StrL_Hex <> nil ) then
         StrL_Hex[ StrL_Hex.Count-1 ] := StrL_Hex[ StrL_Hex.Count-1 ] + sCom;
       end;
 
@@ -4613,7 +4634,7 @@ begin
     end;
 
   {$IFDEF AssemblyTools}
-  if Assigned( Details ) then
+  if ( Details <> nil ) then
     begin
     SetLength( Details^.Items, Details^.Count );
     SetLength( Details^.JumpTargets, Details^.TargetCount );
@@ -4622,7 +4643,7 @@ begin
 
   StrL_In.free;
   StrL_Assembly.EndUpdate;
-//  if Assigned( Details ) AND ( Architecture = CS_ARCH_X86 ) then
+//  if ( Details <> nil ) AND ( Architecture = CS_ARCH_X86 ) then
 //    JumpLines( Details^.Items );
   result := True;
 end;
@@ -4640,21 +4661,21 @@ var
   bNOP        : Byte;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( Data ) OR ( Size = 0 ) then
+  if ( Data = nil ) OR ( Size = 0 ) then
     Exit;
 
-//  if Assigned( StrL_Assembly ) then
+//  if ( StrL_Assembly <> nil ) then
 //    StrL_Assembly.Clear;
 
   Decoder.SetData( Data, Size, CodeOffset, DecoderSettings );
 
   bNOP := 0;
   {$IFDEF AssemblyTools}
-  if Assigned( Details ) then
+  if ( Details <> nil ) then
     begin
-    if Assigned( StrL_Assembly ) AND Assigned( StrL_Hex ) then
+    if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
       bDecode := Decoder.CanDecode;
       while bDecode do
@@ -4668,7 +4689,11 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           if ( bNOP = 0 ) then
+            begin
+            Formatter.Format( Instruction, tOutput, Length( tOutput ) );
+            StrL_Assembly.Add( String( tOutput ) );
             Inc( Details^.Count );
+            end;
 
           Inc( bNOP );
           if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
@@ -4679,20 +4704,8 @@ begin
           begin
           Details^.Items[ Details^.Count-1 ].Size := bNOP;
 
-          if ( fFormatter.fOptions.UpperCaseKeyWords OR fFormatter.fOptions.UpperCaseEverything ) then
-            begin
-            if ( bNOP > 1 ) then
-              StrL_Assembly.Add( 'NOP:' + IntToStr( bNOP ) )
-            else
-              StrL_Assembly.Add( 'NOP' );
-            end
-          else
-            begin
-            if ( bNOP > 1 ) then
-              StrL_Assembly.Add( 'nop:' + IntToStr( bNOP ) )
-            else
-              StrL_Assembly.Add( 'nop' );
-            end;
+          if ( bNOP > 1 ) then
+            StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
           S := '';
           for i := 0 to bNOP-1 do
@@ -4720,7 +4733,7 @@ begin
         Inc( result, Instruction.len );
         end;
       end
-    else if Assigned( StrL_Assembly ) then
+    else if ( StrL_Assembly <> nil ) then
       begin
       bDecode := Decoder.CanDecode;
       while bDecode do
@@ -4734,7 +4747,11 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           if ( bNOP = 0 ) then
+            begin
+            Formatter.Format( Instruction, tOutput, Length( tOutput ) );
+            StrL_Assembly.Add( String( tOutput ) );
             Inc( Details^.Count );
+            end;
           Inc( bNOP );
           if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
             Continue;
@@ -4744,22 +4761,10 @@ begin
           begin
           Details^.Items[ Details^.Count-1 ].Size := bNOP;
 
-          if ( fFormatter.fOptions.UpperCaseKeyWords OR fFormatter.fOptions.UpperCaseEverything ) then
-            begin
-            if ( bNOP > 1 ) then
-              StrL_Assembly.Add( 'NOP:' + IntToStr( bNOP ) )
-            else
-              StrL_Assembly.Add( 'NOP' );
-            end
-          else
-            begin
-            if ( bNOP > 1 ) then
-              StrL_Assembly.Add( 'nop:' + IntToStr( bNOP ) )
-            else
-              StrL_Assembly.Add( 'nop' );
-            end;
+          if ( bNOP > 1 ) then
+            StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
-          Inc( Data, bNOP-1 );
+//          Inc( Data, bNOP-1 );
           bNOP := 0;
           end;
 
@@ -4770,7 +4775,7 @@ begin
         Inc( result, Instruction.len );
         end;
       end
-    else if Assigned( StrL_Hex ) then
+    else if ( StrL_Hex <> nil ) then
       begin
       bDecode := Decoder.CanDecode;
       while bDecode do
@@ -4839,7 +4844,7 @@ begin
         if ( bNOP >= 1 ) then
           begin
           Details^.Items[ Details^.Count-1 ].Size := bNOP;
-          Inc( Data, bNOP-1 );
+//          Inc( Data, bNOP-1 );
           bNOP := 0;
           end;
 
@@ -4857,7 +4862,7 @@ begin
   else
   {$ENDIF AssemblyTools}
     begin
-    if Assigned( StrL_Assembly ) AND Assigned( StrL_Hex ) then
+    if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
       bDecode := Decoder.CanDecode;
       while bDecode do
@@ -4868,26 +4873,21 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
+
+          if ( bNOP = 0 ) then
+            begin
+            Formatter.Format( Instruction, tOutput, Length( tOutput ) );
+            StrL_Assembly.Add( String( tOutput ) );
+            end;
+
           if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
             Continue;
           end;
 
         if ( bNOP >= 1 ) then
           begin
-          if ( fFormatter.fOptions.UpperCaseKeyWords OR fFormatter.fOptions.UpperCaseEverything ) then
-            begin
-            if ( bNOP > 1 ) then
-              StrL_Assembly.Add( 'NOP:' + IntToStr( bNOP ) )
-            else
-              StrL_Assembly.Add( 'NOP' );
-            end
-          else
-            begin
-            if ( bNOP > 1 ) then
-              StrL_Assembly.Add( 'nop:' + IntToStr( bNOP ) )
-            else
-              StrL_Assembly.Add( 'nop' );
-            end;
+          if ( bNOP > 1 ) then
+            StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
           S := '';
           for i := 0 to bNOP-1 do
@@ -4913,7 +4913,7 @@ begin
         Inc( result, Instruction.len );
         end;
       end
-    else if Assigned( StrL_Assembly ) then
+    else if ( StrL_Assembly <> nil ) then
       begin
       bDecode := Decoder.CanDecode;
       while bDecode do
@@ -4924,28 +4924,23 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
+
+          if ( bNOP = 0 ) then
+            begin
+            Formatter.Format( Instruction, tOutput, Length( tOutput ) );
+            StrL_Assembly.Add( String( tOutput ) );
+            end;
+
           if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
             Continue;
           end;
 
         if ( bNOP >= 1 ) then
           begin
-          if ( fFormatter.fOptions.UpperCaseKeyWords OR fFormatter.fOptions.UpperCaseEverything ) then
-            begin
-            if ( bNOP > 1 ) then
-              StrL_Assembly.Add( 'NOP:' + IntToStr( bNOP ) )
-            else
-              StrL_Assembly.Add( 'NOP' );
-            end
-          else
-            begin
-            if ( bNOP > 1 ) then
-              StrL_Assembly.Add( 'nop:' + IntToStr( bNOP ) )
-            else
-              StrL_Assembly.Add( 'nop' );
-            end;
+          if ( bNOP > 1 ) then
+            StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
-          Inc( Data, bNOP-1 );
+//          Inc( Data, bNOP-1 );
           bNOP := 0;
           end;
 
@@ -4955,7 +4950,7 @@ begin
         Inc( result, Instruction.len );
         end;
       end
-    else if Assigned( StrL_Hex ) then
+    else if ( StrL_Hex <> nil ) then
       begin
       bDecode := Decoder.CanDecode;
       while bDecode do
@@ -5009,23 +5004,23 @@ var
   bNOP        : Byte;
 begin
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( Data ) OR ( Size = 0 ) then
+  if ( Data = nil ) OR ( Size = 0 ) then
     Exit;
   if ( Count = 0 ) then
     Exit;
 
-//  if Assigned( StrL_Assembly ) then
+//  if ( StrL_Assembly <> nil ) then
 //    StrL_Assembly.Clear;
 
   Decoder.SetData( Data, Size, CodeOffset, DecoderSettings );
 
   bNOP := 0;
   {$IFDEF AssemblyTools}
-  if Assigned( Details ) then
+  if ( Details <> nil ) then
     begin
-    if Assigned( StrL_Assembly ) AND Assigned( StrL_Hex ) then
+    if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
       bDecode := Decoder.CanDecode;
       while bDecode do
@@ -5076,7 +5071,7 @@ begin
         Inc( result, Instruction.len );
         end;
       end
-    else if Assigned( StrL_Assembly ) then
+    else if ( StrL_Assembly <> nil ) then
       begin
       bDecode := Decoder.CanDecode;
       while bDecode do
@@ -5118,7 +5113,7 @@ begin
         Inc( result, Instruction.len );
         end;
       end
-    else if Assigned( StrL_Hex ) then
+    else if ( StrL_Hex <> nil ) then
       begin
       bDecode := Decoder.CanDecode;
       while bDecode do
@@ -5207,7 +5202,7 @@ begin
   else
   {$ENDIF AssemblyTools}
     begin
-    if Assigned( StrL_Assembly ) AND Assigned( StrL_Hex ) then
+    if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
       bDecode := Decoder.CanDecode;
       while bDecode do
@@ -5248,7 +5243,7 @@ begin
         Inc( result, Instruction.len );
         end;
       end
-    else if Assigned( StrL_Assembly ) then
+    else if ( StrL_Assembly <> nil ) then
       begin
       bDecode := Decoder.CanDecode;
       while bDecode do
@@ -5281,7 +5276,7 @@ begin
         Inc( result, Instruction.len );
         end;
       end
-    else if Assigned( StrL_Hex ) then
+    else if ( StrL_Hex <> nil ) then
       begin
       bDecode := Decoder.CanDecode;
       while bDecode do
@@ -5336,19 +5331,19 @@ begin
   result := Decode( @Data[ 0 ], Length( Data ), 1, StrL_Assembly, Address, StrL_Hex, {$IFDEF AssemblyTools}@Details,{$ENDIF} DecoderSettings, False{CalcJumpLines} );
   if ( result > 0 ) then
     begin
-    if Assigned( Instruction ) then
+    if ( Instruction <> nil ) then
       Instruction^ := StrL_Assembly[ 0 ];
     {$IFDEF AssemblyTools}
-    if Assigned( Detail ) then
+    if ( Detail <> nil ) then
       Detail^ := Details.Items[ 0 ];
     {$ENDIF AssemblyTools}
     end
   else
     begin
-    if Assigned( Instruction ) then
+    if ( Instruction <> nil ) then
       Instruction^ := '';
     {$IFDEF AssemblyTools}
-    if Assigned( Detail ) then
+    if ( Detail <> nil ) then
       FillChar( Detail^, SizeOf( Detail ), 0 );
     {$ENDIF AssemblyTools}
     end;
@@ -5378,19 +5373,19 @@ begin
   result := Decode( Data, Size, 1, StrL_Assembly, Address, StrL_Hex, {$IFDEF AssemblyTools}@Details,{$ENDIF} DecoderSettings, False{CalcJumpLines} );
   if ( result > 0 ) then
     begin
-    if Assigned( Instruction ) then
+    if ( Instruction <> nil ) then
       Instruction^ := StrL_Assembly[ 0 ];
     {$IFDEF AssemblyTools}
-    if Assigned( Detail ) then
+    if ( Detail <> nil ) then
       Detail^ := Details.Items[ 0 ];
     {$ENDIF AssemblyTools}
     end
   else
     begin
-    if Assigned( Instruction ) then
+    if ( Instruction <> nil ) then
       Instruction^ := '';
     {$IFDEF AssemblyTools}
-    if Assigned( Detail ) then
+    if ( Detail <> nil ) then
       FillChar( Detail^, SizeOf( Detail ), 0 );
     {$ENDIF AssemblyTools}
     end;
@@ -5406,8 +5401,8 @@ end;
 
 function TIced.PointerScan( Code : PByte; Size : Cardinal; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
 const
-  BLOCK_SIZE   = 10000;
-  UPDATE_PERCENT = 0.25;
+  BLOCK_SIZE   = 100000;
+  UPDATE_PERCENT = 0.02;
 var
   Instruction : TInstruction;
   Offsets     : TConstantOffsets;
@@ -5423,7 +5418,7 @@ var
 begin
   result := 0;
   SetLength( results, 0 );
-  if NOT Assigned( Code ) then
+  if ( Code = nil ) then
     Exit;
   if ( Size = 0 ) then
     Exit;
@@ -5439,7 +5434,7 @@ begin
   UpdBytes := Trunc( size * UPDATE_PERCENT );
   while ( done < size ) do
     begin
-    if Assigned( ProcessEvent ) AND ( Upd = 0 ) then
+    if ( @ProcessEvent <> nil ) AND ( Upd = 0 ) then
       begin
       ProcessEvent( done, size, Cancel );
       if Cancel then
@@ -5547,7 +5542,7 @@ end;
 
 function TIced.PointerScan( Data : TMemoryStream; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
 begin
-  if NOT Assigned( Data ) then
+  if ( Data = nil ) then
     begin
     result := 0;
     Exit;
@@ -5572,7 +5567,7 @@ var
 begin
   result := 0;
   SetLength( results, 0 );
-  if NOT Assigned( Code ) then
+  if ( Code = nil ) then
     Exit;
   if ( Size = 0 ) then
     Exit;
@@ -5588,7 +5583,7 @@ begin
   UpdBytes := Trunc( size * UPDATE_PERCENT );
   while ( done < size ) do
     begin
-    if Assigned( ProcessEvent ) AND ( Upd = 0 ) then
+    if ( @ProcessEvent <> nil ) AND ( Upd = 0 ) then
       begin
       ProcessEvent( done, size, Cancel );
       if Cancel then
@@ -5679,12 +5674,279 @@ end;
 
 function TIced.ReferenceScan( Data : TMemoryStream; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
 begin
-  if NOT Assigned( Data ) then
+  if ( Data = nil ) then
     begin
     result := 0;
     Exit;
     end;
   result := ReferenceScan( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Data.Size-Data.Position, Reference, Results, CodeOffset, ProcessEvent );
+end;
+
+function TIced.AssemblyScan( Code : PByte; Size : Cardinal; Assembly : String; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
+  function IsWm( Text, MatchText: String; caseSensitive : boolean = false ): Boolean;
+  var
+    StringPtr: PChar;
+    PatternPtr: PChar;
+    StringRes: PChar;
+    PatternRes: PChar;
+    tText,
+    tMatchText : String;
+  begin
+    Result := False;
+
+    if ( Text = '' ) or ( MatchText = '' ) then
+      Exit;
+
+    if ( caseSensitive ) then
+      begin
+      tText := Text;
+      tMatchText := MatchText;
+      end
+    else
+      begin
+      tText      := {$IFDEF STANDALONE}SysUtils.{$ENDIF}UpperCase( Text );
+      tMatchText := {$IFDEF STANDALONE}SysUtils.{$ENDIF}UpperCase( MatchText );
+      end;
+
+    StringPtr  := PChar( tText );
+    PatternPtr := PChar( tMatchText );
+    StringRes  := nil;
+    PatternRes := nil;
+
+    repeat
+      repeat
+        case PatternPtr^ of
+          #0:
+              begin
+              Result := StringPtr^ = #0;
+              if Result or ( StringRes = nil ) or ( PatternRes = nil ) then
+                Exit;
+
+              StringPtr := StringRes;
+              PatternPtr := PatternRes;
+              Break;
+              end;
+          '*':
+              begin
+              Inc( PatternPtr );
+              PatternRes := PatternPtr;
+              Break;
+              end;
+          '?':
+              begin
+              if StringPtr^ = #0 then
+                Exit;
+              Inc( StringPtr );
+              Inc( PatternPtr );
+              end;
+        else
+            begin
+              if StringPtr^ = #0 then
+                Exit;
+              if StringPtr^ <> PatternPtr^ then
+                begin
+                if ( StringRes = nil ) or ( PatternRes = nil ) then
+                  Exit;
+                StringPtr := StringRes;
+                PatternPtr := PatternRes;
+                Break;
+                end
+              else
+                begin
+                Inc( StringPtr );
+                Inc( PatternPtr );
+                end;
+            end;
+        end;
+      until False;
+
+      repeat
+        case PatternPtr^ of
+          #0:
+              begin
+              Result := True;
+              Exit;
+              end;
+          '*':
+              begin
+              Inc( PatternPtr );
+              PatternRes := PatternPtr;
+              end;
+          '?':
+              begin
+              if StringPtr^ = #0 then
+                Exit;
+              Inc( StringPtr );
+              Inc( PatternPtr );
+              end;
+        else
+              begin
+              repeat
+                if StringPtr^ = #0 then
+                  Exit;
+                if StringPtr^ = PatternPtr^ then
+                  Break;
+                Inc( StringPtr );
+              until False;
+              Inc( StringPtr );
+              StringRes := StringPtr;
+              Inc( PatternPtr );
+              Break;
+              end;
+        end;
+      until False;
+    until False;
+  end;
+const
+  BLOCK_SIZE     = 10000;
+  UPDATE_PERCENT = 0.25;
+var
+  Instruction : TInstruction;
+  done        : UInt64;
+  StrL        : TStringList;
+  iCnt        : Cardinal;
+  sInstruction: string;
+  cInstruction: Array [ 0..255 ] of AnsiChar;
+  {$IF Declared( RegularExpressions )}
+  RegEx       : TRegEx;
+  {$IFEND}
+  b           : Boolean;
+  Offset      : UInt64;
+
+  Upd         : Cardinal;
+  UpdBytes    : Cardinal;
+  Cancel      : Boolean;
+begin
+  result := 0;
+  SetLength( results, 0 );
+  if ( Code = nil ) then
+    Exit;
+  if ( Size = 0 ) then
+    Exit;
+  if ( Assembly = '' ) then
+    Exit;
+
+  Decoder.SetData( Code, Size, CodeOffset );
+
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  done := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Cancel := False;
+
+  StrL := TStringList.Create;
+  StrL.Text := LowerCase( Trim( Assembly ) );
+
+  for iCnt := StrL.Count-1 downTo 0 do
+    begin
+    StrL[ iCnt ] := Trim( StrL[ iCnt ] );
+    if ( StrL[ iCnt ] = '' ) then
+      StrL.Delete( iCnt );
+    end;
+
+  iCnt := 0;
+  sInstruction := '';
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Offset := CodeOffset;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+
+  {$IF Declared( RegularExpressions )}
+  if Mode = asmRegExp then
+    RegEx := TRegEx.Create( StrL[ 0 ] );
+  {$IFEND}
+
+  Upd := 0;
+  UpdBytes := Trunc( size * UPDATE_PERCENT );
+  while ( done < size ) do
+    begin
+    if ( @ProcessEvent <> nil ) AND ( Upd = 0 ) then
+      begin
+      ProcessEvent( done, size, Cancel );
+      if Cancel then
+        Break;
+      Upd := UpdBytes;
+      end;
+
+    Decoder.Decode( Instruction );
+
+    if Instruction.IsValid then
+      begin
+      Formatter.Format( Instruction, @cInstruction[ 0 ], Length( cInstruction ) );
+
+      case Mode of
+        asmEqual    : b := ( CompareText( StrL[ iCnt ], String( cInstruction ) ) = 0 );
+        asmWildcard : b := IsWm( String( cInstruction ), StrL[ iCnt ], False );
+      {$IF Declared( RegularExpressions )}
+        asmRegExp   : b := RegEx.IsMatch( String( cInstruction ) );
+      {$IFEND}
+      else
+        b := False;
+      end;
+
+      if b then
+        begin
+        if ( iCnt = 0 ) then
+          {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+          Offset := Instruction.RIP;
+          {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+
+        if ( iCnt = StrL.Count-1 ) then
+          begin
+          if ( result >= Length( results ) ) then
+            SetLength( results, Length( results )+BLOCK_SIZE );
+          {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+          Results[ result ].Origin      := Offset;
+          Results[ result ].Instruction := sInstruction + String( cInstruction );
+          {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+          Inc( result );
+
+          iCnt := 0;
+          sInstruction := '';
+
+          {$IF Declared( RegularExpressions )}
+          if Mode = asmRegExp then
+            RegEx := TRegEx.Create( StrL[ 0 ] );
+          {$IFEND Declared( RegularExpressions )}
+          end
+        else
+          begin
+          Inc( iCnt );
+          sInstruction := sInstruction + String( cInstruction ) + #13#10;
+          {$IF Declared( RegularExpressions )}
+          if Mode = asmRegExp then
+            RegEx := TRegEx.Create( StrL[ iCnt ] );
+          {$IFEND Declared( RegularExpressions )}
+          end;
+        end;
+      end
+    else
+      begin
+      iCnt := 0;
+      sInstruction := '';
+      end;
+
+    {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    done := done + Instruction.len;
+//    Inc( Code, Instruction.len );
+//    Inc( CodeOffset, Instruction.len );
+    if ( Upd > Instruction.len )  then
+      Dec( Upd, Instruction.len )
+    else
+      Upd := 0;
+    {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    end;
+  StrL.free;
+
+  SetLength( results, result );
+end;
+
+function TIced.AssemblyScan( Data : TMemoryStream; Assembly : String; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
+begin
+  if ( Data = nil ) then
+    begin
+    result := 0;
+    Exit;
+    end;
+  result := AssemblyScan( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Data.Size-Data.Position, Assembly, Results, CodeOffset, Mode, ProcessEvent );
 end;
 
 function TIced.FindInstruction( Data : PByte; Size : Cardinal; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal;
@@ -5696,9 +5958,9 @@ var
 begin
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   result := 0;
-  if NOT Assigned( self ) then
+  if ( self = nil ) then
     Exit;
-  if NOT Assigned( Data ) OR ( Size = 0 ) then
+  if ( Data = nil ) OR ( Size = 0 ) then
     Exit;
 
   if ( Offset > CodeOffset+Size ) then
@@ -5718,7 +5980,7 @@ begin
 
   Decoder.SetData( Data, Size-i, CodeOffset+i, DecoderSettings );
   {$IFDEF AssemblyTools}
-  if Assigned( Details ) then
+  if ( Details <> nil ) then
     begin
     while Decoder.CanDecode do
       begin
@@ -5751,7 +6013,7 @@ end;
 function TIced.FindInstruction( Data : TMemoryStream; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal;
 begin
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
-  if NOT Assigned( Data ) then
+  if ( Data = nil ) then
     begin
     result := 0;
     Exit;
@@ -5764,11 +6026,9 @@ end;
 {$IFDEF TEST_FUNCTIONS}
 function Test( StrL : TStringList ) : Boolean;
 begin
-  if Assigned( StrL ) then
-    StrL.Clear;
-
-  if Assigned( StrL ) then
+  if ( StrL <> nil ) then
     begin
+    StrL.Clear;
     StrL.Add( 'Disassemble' );
     StrL.Add( '---' );
     end;
@@ -5797,7 +6057,7 @@ begin
 //                  True{Info}
                 );
 
-  if Assigned( StrL ) then
+  if ( StrL <> nil ) then
     begin
     StrL.Add( '' );
     StrL.Add( 'Re-Assemble' );
@@ -5814,7 +6074,7 @@ begin
                   StrL
                 );
 
-  if Assigned( StrL ) then
+  if ( StrL <> nil ) then
     begin
     StrL.Add( '' );
     StrL.Add( 'Assemble' );
@@ -5848,7 +6108,7 @@ var
   i             : Integer;
 begin
   result := False;
-  if NOT Assigned( AOutput ) then
+  if ( AOutput = nil ) then
     Exit;
   AAOutput.Clear;
 
@@ -5877,7 +6137,7 @@ begin
       for i := 0 to HEXBYTES_COLUMN_BYTE_LENGTH-Instruction.len*2+1 do
         S := S + ' ';
 
-      if Assigned( FormatterOutputCallback ) then
+      if ( FormatterOutputCallback <> nil ) then
         Iced.Formatter.Format( Instruction );
       Iced.Formatter.Format( Instruction, tOutput, Length( tOutput ) );
       AAOutput.Add( S + String( tOutput ) );
@@ -6030,7 +6290,7 @@ var
   C           : UInt64;
   i           : Integer;
 begin
-//  if Assigned( Output ) then
+//  if ( Output <> nil ) then
 //    AOutput.Clear;
 
   Iced.Decoder.SetData( Data, Size, RIP, doNONE );
@@ -6074,7 +6334,7 @@ begin
 //      Iced.Encoder.SetBuffer( nil, 0 );
     end;
 
-  if Assigned( Output ) then
+  if ( Output <> nil ) then
     begin
     if BlockEncode then
       Iced.Decoder.SetData( PByte( Results.code_buffer ), Results.code_buffer_len, Results.RIP, doNONE )
@@ -6139,7 +6399,7 @@ var
   Data         : PByte;
   C            : Cardinal;
 begin
-//  if Assigned( Output ) then
+//  if ( Output <> nil ) then
 //    AOutput.Clear;
 
   // All created instructions get an IP of 0. The label id is just an IP.
@@ -6205,7 +6465,7 @@ begin
   Iced.Formatter.FormatterType := ftGas;
   Iced.Formatter.FirstOperandCharIndex := 8;
 
-  if Assigned( Output ) then
+  if ( Output <> nil ) then
     begin
     Iced.Decoder.SetData( PByte( Results.code_buffer ), Results.code_buffer_len-NativeUInt( Length( raw_data ) ), Results.RIP, doNONE );
     Data := PByte( Results.code_buffer );
