@@ -356,6 +356,13 @@ type
     ftCapstone // Masm with adapted Options
   );
 
+  TIcedSpecializedFormatterType = (
+    sftDefault,
+    sftSymbol,
+    sftDBDWDDDQ,
+    sftSymbolDBDWDDDQ
+  );
+
 const
   DEFAULT_FORMATTER = ftCapstone; // ftMasm;
 

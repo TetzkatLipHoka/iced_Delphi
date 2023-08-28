@@ -196,11 +196,10 @@ var
   FastFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl;
 
   // Creates a Specialized formatter
-  // NOTE: Specialized Formatter only supports the following Options
-  SpecializedFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl;
+  SpecializedFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; DBDWDDDQ : Boolean = False; UserData : Pointer = nil ) : Pointer; cdecl;
 
   // Format Instruction
-  SpecializedFormatter_Format : procedure( Formatter : Pointer; var Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl;
+  SpecializedFormatter_Format : procedure( Formatter : Pointer; FormatterType : TIcedSpecializedFormatterType; var Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl;
 
 // Options
   // NOTE: Specialized Formatter only supports the following Options
@@ -211,7 +210,7 @@ var
   // --------|-------|---------|--------
   // _ | `true` | `mov eax,dword ptr [ebx]` | `add byte ptr [eax],0x12`
   // X | `false` | `mov eax,[ebx]` | `add byte ptr [eax],0x12`
-  SpecializedFormatter_GetAlwaysShowMemorySize : function( Formatter: Pointer ) : boolean; cdecl;
+  SpecializedFormatter_GetAlwaysShowMemorySize : function( Formatter: Pointer; FormatterType : TIcedSpecializedFormatterType ) : boolean; cdecl;
 
   // Always show the size of memory operands
   //
@@ -222,28 +221,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  SpecializedFormatter_SetAlwaysShowMemorySize : function( Formatter: Pointer; Value : Boolean ) : boolean; cdecl;
-
-  // Always show the effective segment register. If the option is `false`, only show the segment register if
-  // there's a segment override prefix.
-  //
-  // Default | Value | Example
-  // --------|-------|--------
-  // _ | `true` | `mov eax,ds:[ecx]`
-  // X | `false` | `mov eax,[ecx]`
-  SpecializedFormatter_GetAlwaysShowSegmentRegister : function( Formatter: Pointer ) : boolean; cdecl;
-
-  // Always show the effective segment register. If the option is `false`, only show the segment register if
-  // there's a segment override prefix.
-  //
-  // Default | Value | Example
-  // --------|-------|--------
-  // _ | `true` | `mov eax,ds:[ecx]`
-  // X | `false` | `mov eax,[ecx]`
-  //
-  // # Arguments
-  // * `value`: New value
-  SpecializedFormatter_SetAlwaysShowSegmentRegister : function( Formatter: Pointer; Value : Boolean ) : boolean; cdecl;
+  SpecializedFormatter_SetAlwaysShowMemorySize : function( Formatter: Pointer; FormatterType : TIcedSpecializedFormatterType; Value : Boolean ) : boolean; cdecl;
 
   // Use a hex prefix ( `0x` ) or a hex suffix ( `h` )
   //
@@ -251,7 +229,7 @@ var
   // --------|-------|--------
   // _ | `true` | `0x5A`
   // X | `false` | `5Ah`
-  SpecializedFormatter_GetUseHexPrefix : function( Formatter: Pointer ) : boolean; cdecl;
+  SpecializedFormatter_GetUseHexPrefix : function( Formatter: Pointer; FormatterType : TIcedSpecializedFormatterType ) : boolean; cdecl;
 
   // Use a hex prefix ( `0x` ) or a hex suffix ( `h` )
   //
@@ -262,106 +240,14 @@ var
   //
   // # Arguments
   // * `value`: New value
-  SpecializedFormatter_SetUseHexPrefix : function( Formatter: Pointer; Value : Boolean ) : boolean; cdecl;
-
-  // Use pseudo instructions
-  //
-  // Default | Value | Example
-  // --------|-------|--------
-  // X | `true` | `vcmpnltsd xmm2,xmm6,xmm3`
-  // _ | `false` | `vcmpsd xmm2,xmm6,xmm3,5h`
-  SpecializedFormatter_GetUsePseudoOps : function( Formatter: Pointer ) : boolean; cdecl;
-
-  // Use pseudo instructions
-  //
-  // Default | Value | Example
-  // --------|-------|--------
-  // X | `true` | `vcmpnltsd xmm2,xmm6,xmm3`
-  // _ | `false` | `vcmpsd xmm2,xmm6,xmm3,5h`
-  //
-  // # Arguments
-  // * `value`: New value
-  SpecializedFormatter_SetUsePseudoOps : function( Formatter: Pointer; Value : Boolean ) : boolean; cdecl;
-
-  // Show `RIP+displ` or the virtual address
-  //
-  // Default | Value | Example
-  // --------|-------|--------
-  // _ | `true` | `mov eax,[rip+12345678h]`
-  // X | `false` | `mov eax,[1029384756AFBECDh]`
-  SpecializedFormatter_GetRipRelativeAddresses : function( Formatter: Pointer ) : boolean; cdecl;
-
-  // Show `RIP+displ` or the virtual address
-  //
-  // Default | Value | Example
-  // --------|-------|--------
-  // _ | `true` | `mov eax,[rip+12345678h]`
-  // X | `false` | `mov eax,[1029384756AFBECDh]`
-  //
-  // # Arguments
-  // * `value`: New value
-  SpecializedFormatter_SetRipRelativeAddresses : function( Formatter: Pointer; Value : Boolean ) : boolean; cdecl;
-
-  // Show the original value after the symbol name
-  //
-  // Default | Value | Example
-  // --------|-------|--------
-  // _ | `true` | `mov eax,[myfield ( 12345678 )]`
-  // X | `false` | `mov eax,[myfield]`
-  SpecializedFormatter_GetShowSymbolAddress : function( Formatter: Pointer ) : boolean; cdecl;
-
-  // Show the original value after the symbol name
-  //
-  // Default | Value | Example
-  // --------|-------|--------
-  // _ | `true` | `mov eax,[myfield ( 12345678 )]`
-  // X | `false` | `mov eax,[myfield]`
-  //
-  // # Arguments
-  // * `value`: New value
-  SpecializedFormatter_SetShowSymbolAddress : function( Formatter: Pointer; Value : Boolean ) : boolean; cdecl;
-
-  // Add a space after the operand separator
-  //
-  // Default | Value | Example
-  // --------|-------|--------
-  // _ | `true` | `mov rax, rcx`
-  // X | `false` | `mov rax,rcx`
-  SpecializedFormatter_GetSpaceAfterOperandSeparator : function( Formatter: Pointer ) : boolean; cdecl;
-
-  // Add a space after the operand separator
-  //
-  // Default | Value | Example
-  // --------|-------|--------
-  // _ | `true` | `mov rax, rcx`
-  // X | `false` | `mov rax,rcx`
-  //
-  // # Arguments
-  // * `value`: New value
-  SpecializedFormatter_SetSpaceAfterOperandSeparator : function( Formatter: Pointer; Value : Boolean ) : boolean; cdecl;
-
-  // Use uppercase hex digits
-  //
-  // Default | Value | Example
-  // --------|-------|--------
-  // X | `true` | `0xFF`
-  // _ | `false` | `0xff`
-  SpecializedFormatter_GetUpperCaseHex : function( Formatter: Pointer ) : boolean; cdecl;
-
-  // Use uppercase hex digits
-  //
-  // Default | Value | Example
-  // --------|-------|--------
-  // X | `true` | `0xFF`
-  // _ | `false` | `0xff`
-  //
-  // # Arguments
-  // * `value`: New value
-  SpecializedFormatter_SetUpperCaseHex : function( Formatter: Pointer; Value : Boolean ) : boolean; cdecl;
+  SpecializedFormatter_SetUseHexPrefix : function( Formatter: Pointer; FormatterType : TIcedSpecializedFormatterType; Value : Boolean ) : boolean; cdecl;
 
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Formatter Options
+  // Format Instruction
+  Formatter_Format : procedure( Formatter : Pointer; FormatterType : TIcedFormatterType; var Instruction: TInstruction; Output: PAnsiChar; Size : NativeUInt ); cdecl;
+  Formatter_FormatCallback : procedure( Formatter : Pointer; FormatterType : TIcedFormatterType; var Instruction: TInstruction; FormatterOutput: Pointer ); cdecl;
 
   // Prefixes are uppercased
   //
@@ -369,7 +255,7 @@ var
   // --------|-------|--------
   // _ | `true` | `REP stosd`
   // X | `false` | `rep stosd`
-  Formatter_GetUpperCasePrefixes : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetUpperCasePrefixes : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Prefixes are uppercased
   //
@@ -381,7 +267,7 @@ var
   // # Arguments
   //
   // * `value`: New value
-  Formatter_SetUpperCasePrefixes : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetUpperCasePrefixes : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Mnemonics are uppercased
   //
@@ -389,7 +275,7 @@ var
   // --------|-------|--------
   // _ | `true` | `MOV rcx,rax`
   // X | `false` | `mov rcx,rax`
-  Formatter_GetUpperCaseMnemonics : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetUpperCaseMnemonics : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Mnemonics are uppercased
   //
@@ -400,7 +286,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetUpperCaseMnemonics : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetUpperCaseMnemonics : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Registers are uppercased
   //
@@ -408,7 +294,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov RCX,[RAX+RDX*8]`
   // X | `false` | `mov rcx,[rax+rdx*8]`
-  Formatter_GetUpperCaseRegisters : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetUpperCaseRegisters : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Registers are uppercased
   //
@@ -419,7 +305,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetUpperCaseRegisters : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetUpperCaseRegisters : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Keywords are uppercased ( eg. `BYTE PTR`, `SHORT` )
   //
@@ -427,7 +313,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov BYTE PTR [rcx],12h`
   // X | `false` | `mov byte ptr [rcx],12h`
-  Formatter_GetUpperCaseKeyWords : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetUpperCaseKeyWords : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Keywords are uppercased ( eg. `BYTE PTR`, `SHORT` )
   //
@@ -438,7 +324,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetUpperCaseKeyWords : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetUpperCaseKeyWords : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Uppercase decorators, eg. `{z  ); `, `{sae  ); `, `{rd-sae  ); ` ( but not opmask registers: `{k1  ); ` )
   //
@@ -446,7 +332,7 @@ var
   // --------|-------|--------
   // _ | `true` | `vunpcklps xmm2{k5  ); {Z  ); ,xmm6,dword bcst [rax+4]`
   // X | `false` | `vunpcklps xmm2{k5  ); {z  ); ,xmm6,dword bcst [rax+4]`
-  Formatter_GetUpperCaseDecorators : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetUpperCaseDecorators : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Uppercase decorators, eg. `{z  ); `, `{sae  ); `, `{rd-sae  ); ` ( but not opmask registers: `{k1  ); ` )
   //
@@ -457,7 +343,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetUpperCaseDecorators : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetUpperCaseDecorators : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Everything is uppercased, except numbers and their prefixes/suffixes
   //
@@ -465,7 +351,7 @@ var
   // --------|-------|--------
   // _ | `true` | `MOV EAX,GS:[RCX*4+0ffh]`
   // X | `false` | `mov eax,gs:[rcx*4+0ffh]`
-  Formatter_GetUpperCaseEverything : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetUpperCaseEverything : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Everything is uppercased, except numbers and their prefixes/suffixes
   //
@@ -477,7 +363,7 @@ var
   // # Arguments
   //
   // * `value`: New value
-  Formatter_SetUpperCaseEverything : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetUpperCaseEverything : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Character index ( 0-based ) where the first operand is formatted. Can be set to 0 to format it immediately after the mnemonic.
   // At least one space or tab is always added between the mnemonic and the first operand.
@@ -486,7 +372,7 @@ var
   // --------|-------|--------
   // X | `0` | `mov•rcx,rbp`
   // _ | `8` | `mov•••••rcx,rbp`
-  Formatter_GetFirstOperandCharIndex : function( Formatter: Pointer ) : Cardinal; cdecl;
+  Formatter_GetFirstOperandCharIndex : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : Cardinal; cdecl;
 
   // Character index ( 0-based ) where the first operand is formatted. Can be set to 0 to format it immediately after the mnemonic.
   // At least one space or tab is always added between the mnemonic and the first operand.
@@ -498,12 +384,12 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetFirstOperandCharIndex : function( Formatter: Pointer; Value : Cardinal ) : boolean; cdecl;
+  Formatter_SetFirstOperandCharIndex : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Cardinal ) : boolean; cdecl;
 
   // Size of a tab character or 0 to use spaces
   //
   // - Default: `0`
-  Formatter_GetTabSize : function( Formatter: Pointer ) : Cardinal; cdecl;
+  Formatter_GetTabSize : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : Cardinal; cdecl;
 
   // Size of a tab character or 0 to use spaces
   //
@@ -512,7 +398,7 @@ var
   // # Arguments
   //
   // * `value`: New value
-  Formatter_SetTabSize : function( Formatter: Pointer; Value : Cardinal ) : boolean; cdecl;
+  Formatter_SetTabSize : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Cardinal ) : boolean; cdecl;
 
   // Add a space after the operand separator
   //
@@ -520,7 +406,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov rax, rcx`
   // X | `false` | `mov rax,rcx`
-  Formatter_GetSpaceAfterOperandSeparator : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetSpaceAfterOperandSeparator : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Add a space after the operand separator
   //
@@ -531,7 +417,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetSpaceAfterOperandSeparator : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetSpaceAfterOperandSeparator : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Add a space between the memory expression and the brackets
   //
@@ -539,7 +425,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov eax,[ rcx+rdx ]`
   // X | `false` | `mov eax,[rcx+rdx]`
-  Formatter_GetSpaceAfterMemoryBracket : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetSpaceAfterMemoryBracket : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Add a space between the memory expression and the brackets
   //
@@ -550,7 +436,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetSpaceAfterMemoryBracket : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetSpaceAfterMemoryBracket : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Add spaces between memory operand `+` and `-` operators
   //
@@ -558,7 +444,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov eax,[rcx + rdx*8 - 80h]`
   // X | `false` | `mov eax,[rcx+rdx*8-80h]`
-  Formatter_GetSpaceBetweenMemoryAddOperators : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetSpaceBetweenMemoryAddOperators : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Add spaces between memory operand `+` and `-` operators
   //
@@ -569,7 +455,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetSpaceBetweenMemoryAddOperators : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetSpaceBetweenMemoryAddOperators : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Add spaces between memory operand `*` operator
   //
@@ -577,7 +463,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov eax,[rcx+rdx * 8-80h]`
   // X | `false` | `mov eax,[rcx+rdx*8-80h]`
-  Formatter_GetSpaceBetweenMemoryMulOperators : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetSpaceBetweenMemoryMulOperators : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Add spaces between memory operand `*` operator
   //
@@ -588,7 +474,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetSpaceBetweenMemoryMulOperators : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetSpaceBetweenMemoryMulOperators : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Show memory operand scale value before the index register
   //
@@ -596,7 +482,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov eax,[8*rdx]`
   // X | `false` | `mov eax,[rdx*8]`
-  Formatter_GetScaleBeforeIndex : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetScaleBeforeIndex : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Show memory operand scale value before the index register
   //
@@ -607,7 +493,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetScaleBeforeIndex : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetScaleBeforeIndex : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Always show the scale value even if it's `*1`
   //
@@ -615,7 +501,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov eax,[rbx+rcx*1]`
   // X | `false` | `mov eax,[rbx+rcx]`
-  Formatter_GetAlwaysShowScale : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetAlwaysShowScale : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Always show the scale value even if it's `*1`
   //
@@ -626,7 +512,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetAlwaysShowScale : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetAlwaysShowScale : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Always show the effective segment register. If the option is `false`, only show the segment register if
   // there's a segment override prefix.
@@ -635,7 +521,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov eax,ds:[ecx]`
   // X | `false` | `mov eax,[ecx]`
-  Formatter_GetAlwaysShowSegmentRegister : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetAlwaysShowSegmentRegister : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Always show the effective segment register. If the option is `false`, only show the segment register if
   // there's a segment override prefix.
@@ -647,7 +533,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetAlwaysShowSegmentRegister : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetAlwaysShowSegmentRegister : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Show zero displacements
   //
@@ -655,7 +541,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov eax,[rcx*2+0]`
   // X | `false` | `mov eax,[rcx*2]`
-  Formatter_GetShowZeroDisplacements : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetShowZeroDisplacements : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Show zero displacements
   //
@@ -666,12 +552,12 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetShowZeroDisplacements : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetShowZeroDisplacements : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Hex number prefix or an empty string, eg. `"0x"`
   //
   // - Default: `""` ( masm/nasm/intel ), `"0x"` ( gas )
-  Formatter_GetHexPrefix : function( Formatter: Pointer; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
+  Formatter_GetHexPrefix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
 
   // Hex number prefix or an empty string, eg. `"0x"`
   //
@@ -679,12 +565,12 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetHexPrefix : function( Formatter: Pointer; Value : PAnsiChar ) : boolean; cdecl;
+  Formatter_SetHexPrefix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar ) : boolean; cdecl;
 
   // Hex number suffix or an empty string, eg. `"h"`
   //
   // - Default: `"h"` ( masm/nasm/intel ), `""` ( gas )
-  Formatter_GetHexSuffix : function( Formatter: Pointer; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
+  Formatter_GetHexSuffix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
 
   // Hex number suffix or an empty string, eg. `"h"`
   //
@@ -692,7 +578,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetHexSuffix : function( Formatter: Pointer; Value : PAnsiChar ) : boolean; cdecl;
+  Formatter_SetHexSuffix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar ) : boolean; cdecl;
 
   // Size of a digit group, see also [`digit_separator(  )`]
   //
@@ -702,7 +588,7 @@ var
   // --------|-------|--------
   // _ | `0` | `0x12345678`
   // X | `4` | `0x1234_5678`
-  Formatter_GetHexDigitGroupSize : function( Formatter: Pointer ) : Cardinal; cdecl;
+  Formatter_GetHexDigitGroupSize : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : Cardinal; cdecl;
 
   // Size of a digit group, see also [`digit_separator(  )`]
   //
@@ -715,12 +601,12 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetHexDigitGroupSize : function( Formatter: Pointer; Value : Cardinal ) : boolean; cdecl;
+  Formatter_SetHexDigitGroupSize : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Cardinal ) : boolean; cdecl;
 
   // Decimal number prefix or an empty string
   //
   // - Default: `""`
-  Formatter_GetDecimalPrefix : function( Formatter: Pointer; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
+  Formatter_GetDecimalPrefix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
 
   // Decimal number prefix or an empty string
   //
@@ -728,12 +614,12 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetDecimalPrefix : function( Formatter: Pointer; Value : PAnsiChar ) : boolean; cdecl;
+  Formatter_SetDecimalPrefix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar ) : boolean; cdecl;
 
   // Decimal number suffix or an empty string
   //
   // - Default: `""`
-  Formatter_GetDecimalSuffix : function( Formatter: Pointer; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
+  Formatter_GetDecimalSuffix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
 
   // Decimal number suffix or an empty string
   //
@@ -741,7 +627,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetDecimalSuffix : function( Formatter: Pointer; Value : PAnsiChar ) : boolean; cdecl;
+  Formatter_SetDecimalSuffix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar ) : boolean; cdecl;
 
   // Size of a digit group, see also [`digit_separator(  )`]
   //
@@ -751,7 +637,7 @@ var
   // --------|-------|--------
   // _ | `0` | `12345678`
   // X | `3` | `12_345_678`
-  Formatter_GetDecimalDigitGroupSize : function( Formatter: Pointer ) : Cardinal; cdecl;
+  Formatter_GetDecimalDigitGroupSize : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : Cardinal; cdecl;
 
   // Size of a digit group, see also [`digit_separator(  )`]
   //
@@ -764,12 +650,12 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetDecimalDigitGroupSize : function( Formatter: Pointer; Value : Cardinal ) : boolean; cdecl;
+  Formatter_SetDecimalDigitGroupSize : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Cardinal ) : boolean; cdecl;
 
   // Octal number prefix or an empty string
   //
   // - Default: `""` ( masm/nasm/intel ), `"0"` ( gas )
-  Formatter_GetOctalPrefix : function( Formatter: Pointer; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
+  Formatter_GetOctalPrefix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
 
   // Octal number prefix or an empty string
   //
@@ -777,12 +663,12 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetOctalPrefix : function( Formatter: Pointer; Value : PAnsiChar ) : boolean; cdecl;
+  Formatter_SetOctalPrefix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar ) : boolean; cdecl;
 
   // Octal number suffix or an empty string
   //
   // - Default: `"o"` ( masm/nasm/intel ), `""` ( gas )
-  Formatter_GetOctalSuffix : function( Formatter: Pointer; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
+  Formatter_GetOctalSuffix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
 
   // Octal number suffix or an empty string
   //
@@ -790,7 +676,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetOctalSuffix : function( Formatter: Pointer; Value : PAnsiChar ) : boolean; cdecl;
+  Formatter_SetOctalSuffix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar ) : boolean; cdecl;
 
   // Size of a digit group, see also [`digit_separator(  )`]
   //
@@ -800,7 +686,7 @@ var
   // --------|-------|--------
   // _ | `0` | `12345670`
   // X | `4` | `1234_5670`
-  Formatter_GetOctalDigitGroupSize : function( Formatter: Pointer ) : Cardinal; cdecl;
+  Formatter_GetOctalDigitGroupSize : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : Cardinal; cdecl;
 
   // Size of a digit group, see also [`digit_separator(  )`]
   //
@@ -813,12 +699,12 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetOctalDigitGroupSize : function( Formatter: Pointer; Value : Cardinal ) : boolean; cdecl;
+  Formatter_SetOctalDigitGroupSize : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Cardinal ) : boolean; cdecl;
 
   // Binary number prefix or an empty string
   //
   // - Default: `""` ( masm/nasm/intel ), `"0b"` ( gas )
-  Formatter_GetBinaryPrefix : function( Formatter: Pointer; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
+  Formatter_GetBinaryPrefix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
 
   // Binary number prefix or an empty string
   //
@@ -826,12 +712,12 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetBinaryPrefix : function( Formatter: Pointer; Value : PAnsiChar ) : boolean; cdecl;
+  Formatter_SetBinaryPrefix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar ) : boolean; cdecl;
 
   // Binary number suffix or an empty string
   //
   // - Default: `"b"` ( masm/nasm/intel ), `""` ( gas )
-  Formatter_GetBinarySuffix : function( Formatter: Pointer; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
+  Formatter_GetBinarySuffix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
 
   // Binary number suffix or an empty string
   //
@@ -839,7 +725,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetBinarySuffix : function( Formatter: Pointer; Value : PAnsiChar ) : boolean; cdecl;
+  Formatter_SetBinarySuffix : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar ) : boolean; cdecl;
 
   // Size of a digit group, see also [`digit_separator(  )`]
   //
@@ -849,7 +735,7 @@ var
   // --------|-------|--------
   // _ | `0` | `11010111`
   // X | `4` | `1101_0111`
-  Formatter_GetBinaryDigitGroupSize : function( Formatter: Pointer ) : Cardinal; cdecl;
+  Formatter_GetBinaryDigitGroupSize : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : Cardinal; cdecl;
 
   // Size of a digit group, see also [`digit_separator(  )`]
   //
@@ -862,7 +748,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetBinaryDigitGroupSize : function( Formatter: Pointer; Value : Cardinal ) : boolean; cdecl;
+  Formatter_SetBinaryDigitGroupSize : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Cardinal ) : boolean; cdecl;
 
   // Digit separator or an empty string. See also eg. [`hex_digit_group_size(  )`]
   //
@@ -872,7 +758,7 @@ var
   // --------|-------|--------
   // X | `""` | `0x12345678`
   // _ | `"_"` | `0x1234_5678`
-  Formatter_GetDigitSeparator : function( Formatter: Pointer; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
+  Formatter_GetDigitSeparator : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar; Size : NativeUInt ) : NativeUInt; cdecl;
 
   // Digit separator or an empty string. See also eg. [`hex_digit_group_size(  )`]
   //
@@ -885,7 +771,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetDigitSeparator : function( Formatter: Pointer; Value : PAnsiChar ) : boolean; cdecl;
+  Formatter_SetDigitSeparator : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : PAnsiChar ) : boolean; cdecl;
 
   // Add leading zeros to hexadecimal/octal/binary numbers.
   // This option has no effect on branch targets and displacements, use [`branch_leading_zeros`]
@@ -895,7 +781,7 @@ var
   // --------|-------|--------
   // _ | `true` | `0x0000000A`/`0000000Ah`
   // X | `false` | `0xA`/`0Ah`
-  Formatter_GetLeadingZeros : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetLeadingZeros : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Add leading zeros to hexadecimal/octal/binary numbers.
   // This option has no effect on branch targets and displacements, use [`branch_leading_zeros`]
@@ -908,7 +794,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetLeadingZeros : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetLeadingZeros : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Use uppercase hex digits
   //
@@ -916,7 +802,7 @@ var
   // --------|-------|--------
   // X | `true` | `0xFF`
   // _ | `false` | `0xff`
-  Formatter_GetUppercaseHex : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetUppercaseHex : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Use uppercase hex digits
   //
@@ -927,7 +813,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetUppercaseHex : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetUppercaseHex : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Small hex numbers ( -9 .. 9 ) are shown in decimal
   //
@@ -935,7 +821,7 @@ var
   // --------|-------|--------
   // X | `true` | `9`
   // _ | `false` | `0x9`
-  Formatter_GetSmallHexNumbersInDecimal : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetSmallHexNumbersInDecimal : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Small hex numbers ( -9 .. 9 ) are shown in decimal
   //
@@ -946,7 +832,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetSmallHexNumbersInDecimal : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetSmallHexNumbersInDecimal : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Add a leading zero to hex numbers if there's no prefix and the number starts with hex digits `A-F`
   //
@@ -954,7 +840,7 @@ var
   // --------|-------|--------
   // X | `true` | `0FFh`
   // _ | `false` | `FFh`
-  Formatter_GetAddLeadingZeroToHexNumbers : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetAddLeadingZeroToHexNumbers : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Add a leading zero to hex numbers if there's no prefix and the number starts with hex digits `A-F`
   //
@@ -965,14 +851,14 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetAddLeadingZeroToHexNumbers : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetAddLeadingZeroToHexNumbers : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Number base
   //
   // - Default: [`Hexadecimal`]
   //
   // [`Hexadecimal`]: enum.NumberBase.html#variant.Hexadecimal
-  Formatter_GetNumberBase : function( Formatter: Pointer ) : TNumberBase; cdecl;
+  Formatter_GetNumberBase : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TNumberBase; cdecl;
 
   // Number base
   //
@@ -982,7 +868,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetNumberBase : function( Formatter: Pointer; Value : TNumberBase ) : boolean; cdecl;
+  Formatter_SetNumberBase : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TNumberBase ) : boolean; cdecl;
 
   // Add leading zeros to branch offsets. Used by `CALL NEAR`, `CALL FAR`, `JMP NEAR`, `JMP FAR`, `Jcc`, `LOOP`, `LOOPcc`, `XBEGIN`
   //
@@ -990,7 +876,7 @@ var
   // --------|-------|--------
   // X | `true` | `je 00000123h`
   // _ | `false` | `je 123h`
-  Formatter_GetBranchLeadingZeros : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetBranchLeadingZeros : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Add leading zeros to branch offsets. Used by `CALL NEAR`, `CALL FAR`, `JMP NEAR`, `JMP FAR`, `Jcc`, `LOOP`, `LOOPcc`, `XBEGIN`
   //
@@ -1001,7 +887,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetBranchLeadingZeros : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetBranchLeadingZeros : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Show immediate operands as signed numbers
   //
@@ -1009,7 +895,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov eax,-1`
   // X | `false` | `mov eax,FFFFFFFF`
-  Formatter_GetSignedImmediateOperands : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetSignedImmediateOperands : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Show immediate operands as signed numbers
   //
@@ -1020,7 +906,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetSignedImmediateOperands : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetSignedImmediateOperands : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Displacements are signed numbers
   //
@@ -1028,7 +914,7 @@ var
   // --------|-------|--------
   // X | `true` | `mov al,[eax-2000h]`
   // _ | `false` | `mov al,[eax+0FFFFE000h]`
-  Formatter_GetSignedMemoryDisplacements : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetSignedMemoryDisplacements : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Displacements are signed numbers
   //
@@ -1040,7 +926,7 @@ var
   // # Arguments
   //
   // * `value`: New value
-  Formatter_SetSignedMemoryDisplacements : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetSignedMemoryDisplacements : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Add leading zeros to displacements
   //
@@ -1048,7 +934,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov al,[eax+00000012h]`
   // X | `false` | `mov al,[eax+12h]`
-  Formatter_GetDisplacementLeadingZeros : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetDisplacementLeadingZeros : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Add leading zeros to displacements
   //
@@ -1059,7 +945,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetDisplacementLeadingZeros : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetDisplacementLeadingZeros : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Options that control if the memory size ( eg. `DWORD PTR` ) is shown or not.
   // This is ignored by the gas ( AT&T ) formatter.
@@ -1080,7 +966,7 @@ type
   );
 
 var
-  Formatter_GetMemorySizeOptions : function( Formatter: Pointer ) : TMemorySizeOptions; cdecl;
+  Formatter_GetMemorySizeOptions : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TMemorySizeOptions; cdecl;
 
   // Options that control if the memory size ( eg. `DWORD PTR` ) is shown or not.
   // This is ignored by the gas ( AT&T ) formatter.
@@ -1091,7 +977,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetMemorySizeOptions : function( Formatter: Pointer; Value : TMemorySizeOptions ) : boolean; cdecl;
+  Formatter_SetMemorySizeOptions : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TMemorySizeOptions ) : boolean; cdecl;
 
   // Show `RIP+displ` or the virtual address
   //
@@ -1099,7 +985,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov eax,[rip+12345678h]`
   // X | `false` | `mov eax,[1029384756AFBECDh]`
-  Formatter_GetRipRelativeAddresses : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetRipRelativeAddresses : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Show `RIP+displ` or the virtual address
   //
@@ -1110,7 +996,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetRipRelativeAddresses : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetRipRelativeAddresses : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Show `NEAR`, `SHORT`, etc if it's a branch instruction
   //
@@ -1118,7 +1004,7 @@ var
   // --------|-------|--------
   // X | `true` | `je short 1234h`
   // _ | `false` | `je 1234h`
-  Formatter_GetShowBranchSize : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetShowBranchSize : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Show `NEAR`, `SHORT`, etc if it's a branch instruction
   //
@@ -1129,7 +1015,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetShowBranchSize : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetShowBranchSize : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Use pseudo instructions
   //
@@ -1137,7 +1023,7 @@ var
   // --------|-------|--------
   // X | `true` | `vcmpnltsd xmm2,xmm6,xmm3`
   // _ | `false` | `vcmpsd xmm2,xmm6,xmm3,5`
-  Formatter_GetUsePseudoOps : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetUsePseudoOps : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Use pseudo instructions
   //
@@ -1148,7 +1034,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetUsePseudoOps : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetUsePseudoOps : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Show the original value after the symbol name
   //
@@ -1156,7 +1042,7 @@ var
   // --------|-------|--------
   // _ | `true` | `mov eax,[myfield ( 12345678 )]`
   // X | `false` | `mov eax,[myfield]`
-  Formatter_GetShowSymbolAddress : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetShowSymbolAddress : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Show the original value after the symbol name
   //
@@ -1168,7 +1054,7 @@ var
   // # Arguments
   //
   // * `value`: New value
-  Formatter_SetShowSymbolAddress : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetShowSymbolAddress : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // ( gas only ) : If `true`, the formatter doesn't add `%` to registers
   //
@@ -1309,7 +1195,7 @@ var
   // --------|-------|--------
   // _ | `true` | `fadd st( 0 ),st( 3 )`
   // X | `false` | `fadd st,st( 3 )`
-  Formatter_GetPreferST0 : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetPreferST0 : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Use `st( 0 )` instead of `st` if `st` can be used. Ignored by the nasm formatter.
   //
@@ -1320,7 +1206,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetPreferST0 : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetPreferST0 : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Show useless prefixes. If it has useless prefixes, it could be data and not code.
   //
@@ -1328,7 +1214,7 @@ var
   // --------|-------|--------
   // _ | `true` | `es rep add eax,ecx`
   // X | `false` | `add eax,ecx`
-  Formatter_GetShowUselessPrefixes : function( Formatter: Pointer ) : boolean; cdecl;
+  Formatter_GetShowUselessPrefixes : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : boolean; cdecl;
 
   // Show useless prefixes. If it has useless prefixes, it could be data and not code.
   //
@@ -1339,7 +1225,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetShowUselessPrefixes : function( Formatter: Pointer; Value : Boolean ) : Boolean; cdecl;
+  Formatter_SetShowUselessPrefixes : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : Boolean ) : Boolean; cdecl;
 
   // Mnemonic condition code selector ( eg. `JB` / `JC` / `JNAE` )
   //
@@ -1355,7 +1241,7 @@ type
   );
 
 var
-  Formatter_GetCC_b : function( Formatter: Pointer ) : TCC_b; cdecl;
+  Formatter_GetCC_b : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TCC_b; cdecl;
 
   // Mnemonic condition code selector ( eg. `JB` / `JC` / `JNAE` )
   //
@@ -1363,7 +1249,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetCC_b : function( Formatter: Pointer; Value : TCC_b ) : boolean; cdecl;
+  Formatter_SetCC_b : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TCC_b ) : boolean; cdecl;
 
   // Mnemonic condition code selector ( eg. `JAE` / `JNB` / `JNC` )
   //
@@ -1379,7 +1265,7 @@ type
   );
 
 var
-  Formatter_GetCC_ae : function( Formatter: Pointer ) : TCC_ae; cdecl;
+  Formatter_GetCC_ae : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TCC_ae; cdecl;
 
   // Mnemonic condition code selector ( eg. `JAE` / `JNB` / `JNC` )
   //
@@ -1387,7 +1273,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetCC_ae : function( Formatter: Pointer; Value : TCC_ae ) : boolean; cdecl;
+  Formatter_SetCC_ae : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TCC_ae ) : boolean; cdecl;
 
   // Mnemonic condition code selector ( eg. `JE` / `JZ` )
   //
@@ -1401,7 +1287,7 @@ type
   );
 
 var
-  Formatter_GetCC_e : function( Formatter: Pointer ) : TCC_e; cdecl;
+  Formatter_GetCC_e : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TCC_e; cdecl;
 
   // Mnemonic condition code selector ( eg. `JE` / `JZ` )
   //
@@ -1409,7 +1295,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetCC_e : function( Formatter: Pointer; Value : TCC_e ) : boolean; cdecl;
+  Formatter_SetCC_e : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TCC_e ) : boolean; cdecl;
 
   // Mnemonic condition code selector ( eg. `JNE` / `JNZ` )
   //
@@ -1423,7 +1309,7 @@ type
   );
 
 var
-  Formatter_GetCC_ne : function( Formatter: Pointer ) : TCC_ne; cdecl;
+  Formatter_GetCC_ne : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TCC_ne; cdecl;
 
   // Mnemonic condition code selector ( eg. `JNE` / `JNZ` )
   //
@@ -1431,7 +1317,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetCC_ne : function( Formatter: Pointer; Value : TCC_ne ) : boolean; cdecl;
+  Formatter_SetCC_ne : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TCC_ne ) : boolean; cdecl;
 
   // Mnemonic condition code selector ( eg. `JBE` / `JNA` )
   //
@@ -1445,7 +1331,7 @@ type
   );
 
 var
-  Formatter_GetCC_be : function( Formatter: Pointer ) : TCC_be; cdecl;
+  Formatter_GetCC_be : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TCC_be; cdecl;
 
   // Mnemonic condition code selector ( eg. `JBE` / `JNA` )
   //
@@ -1453,7 +1339,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetCC_be : function( Formatter: Pointer; Value : TCC_be ) : boolean; cdecl;
+  Formatter_SetCC_be : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TCC_be ) : boolean; cdecl;
 
   // Mnemonic condition code selector ( eg. `JA` / `JNBE` )
   //
@@ -1467,7 +1353,7 @@ type
   );
 
 var
-  Formatter_GetCC_a : function( Formatter: Pointer ) : TCC_a; cdecl;
+  Formatter_GetCC_a : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TCC_a; cdecl;
 
   // Mnemonic condition code selector ( eg. `JA` / `JNBE` )
   //
@@ -1475,7 +1361,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetCC_a : function( Formatter: Pointer; Value : TCC_a ) : boolean; cdecl;
+  Formatter_SetCC_a : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TCC_a ) : boolean; cdecl;
 
   // Mnemonic condition code selector ( eg. `JP` / `JPE` )
   //
@@ -1489,7 +1375,7 @@ type
   );
 
 var
-  Formatter_GetCC_p : function( Formatter: Pointer ) : TCC_p; cdecl;
+  Formatter_GetCC_p : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TCC_p; cdecl;
 
   // Mnemonic condition code selector ( eg. `JP` / `JPE` )
   //
@@ -1497,7 +1383,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetCC_p : function( Formatter: Pointer; Value : TCC_p ) : boolean; cdecl;
+  Formatter_SetCC_p : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TCC_p ) : boolean; cdecl;
 
   // Mnemonic condition code selector ( eg. `JNP` / `JPO` )
   //
@@ -1511,7 +1397,7 @@ type
   );
 
 var
-  Formatter_GetCC_np : function( Formatter: Pointer ) : TCC_np; cdecl;
+  Formatter_GetCC_np : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TCC_np; cdecl;
 
   // Mnemonic condition code selector ( eg. `JNP` / `JPO` )
   //
@@ -1519,7 +1405,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetCC_np : function( Formatter: Pointer; Value : TCC_np ) : boolean; cdecl;
+  Formatter_SetCC_np : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TCC_np ) : boolean; cdecl;
 
   // Mnemonic condition code selector ( eg. `JL` / `JNGE` )
   //
@@ -1533,7 +1419,7 @@ type
   );
 
 var
-  Formatter_GetCC_l : function( Formatter: Pointer ) : TCC_l; cdecl;
+  Formatter_GetCC_l : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TCC_l; cdecl;
 
   // Mnemonic condition code selector ( eg. `JL` / `JNGE` )
   //
@@ -1541,7 +1427,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetCC_l : function( Formatter: Pointer; Value : TCC_l ) : boolean; cdecl;
+  Formatter_SetCC_l : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TCC_l ) : boolean; cdecl;
 
   // Mnemonic condition code selector ( eg. `JGE` / `JNL` )
   //
@@ -1555,7 +1441,7 @@ type
   );
 
 var
-  Formatter_GetCC_ge : function( Formatter: Pointer ) : TCC_ge; cdecl;
+  Formatter_GetCC_ge : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TCC_ge; cdecl;
 
   // Mnemonic condition code selector ( eg. `JGE` / `JNL` )
   //
@@ -1563,7 +1449,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetCC_ge : function( Formatter: Pointer; Value : TCC_ge ) : boolean; cdecl;
+  Formatter_SetCC_ge : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TCC_ge ) : boolean; cdecl;
 
   // Mnemonic condition code selector ( eg. `JLE` / `JNG` )
   //
@@ -1577,7 +1463,7 @@ type
   );
 
 var
-  Formatter_GetCC_le : function( Formatter: Pointer ) : TCC_le; cdecl;
+  Formatter_GetCC_le : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TCC_le; cdecl;
 
   // Mnemonic condition code selector ( eg. `JLE` / `JNG` )
   //
@@ -1585,7 +1471,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetCC_le : function( Formatter: Pointer; Value : TCC_le ) : boolean; cdecl;
+  Formatter_SetCC_le : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TCC_le ) : boolean; cdecl;
 
   // Mnemonic condition code selector ( eg. `JG` / `JNLE` )
   //
@@ -1599,7 +1485,7 @@ type
   );
 
 var
-  Formatter_GetCC_g : function( Formatter: Pointer ) : TCC_g; cdecl;
+  Formatter_GetCC_g : function( Formatter: Pointer; FormatterType : TIcedFormatterType ) : TCC_g; cdecl;
 
   // Mnemonic condition code selector ( eg. `JG` / `JNLE` )
   //
@@ -1607,7 +1493,7 @@ var
   //
   // # Arguments
   // * `value`: New value
-  Formatter_SetCC_g : function( Formatter: Pointer; Value : TCC_g ) : boolean; cdecl;
+  Formatter_SetCC_g : function( Formatter: Pointer; FormatterType : TIcedFormatterType; Value : TCC_g ) : boolean; cdecl;
 
 
   // Encoder
@@ -2599,22 +2485,13 @@ begin
         // Options
         InitVar( @SpecializedFormatter_GetAlwaysShowMemorySize, 'SpecializedFormatter_GetAlwaysShowMemorySize', ID, StrL );
         InitVar( @SpecializedFormatter_SetAlwaysShowMemorySize, 'SpecializedFormatter_SetAlwaysShowMemorySize', ID, StrL );
-        InitVar( @SpecializedFormatter_GetAlwaysShowSegmentRegister, 'SpecializedFormatter_GetAlwaysShowSegmentRegister', ID, StrL );
-        InitVar( @SpecializedFormatter_SetAlwaysShowSegmentRegister, 'SpecializedFormatter_SetAlwaysShowSegmentRegister', ID, StrL );
         InitVar( @SpecializedFormatter_GetUseHexPrefix, 'SpecializedFormatter_GetUseHexPrefix', ID, StrL );
         InitVar( @SpecializedFormatter_SetUseHexPrefix, 'SpecializedFormatter_SetUseHexPrefix', ID, StrL );
-        InitVar( @SpecializedFormatter_GetUsePseudoOps, 'SpecializedFormatter_GetUsePseudoOps', ID, StrL );
-        InitVar( @SpecializedFormatter_SetUsePseudoOps, 'SpecializedFormatter_SetUsePseudoOps', ID, StrL );
-        InitVar( @SpecializedFormatter_GetRipRelativeAddresses, 'SpecializedFormatter_GetRipRelativeAddresses', ID, StrL );
-        InitVar( @SpecializedFormatter_SetRipRelativeAddresses, 'SpecializedFormatter_SetRipRelativeAddresses', ID, StrL );
-        InitVar( @SpecializedFormatter_GetShowSymbolAddress, 'SpecializedFormatter_GetShowSymbolAddress', ID, StrL );
-        InitVar( @SpecializedFormatter_SetShowSymbolAddress, 'SpecializedFormatter_SetShowSymbolAddress', ID, StrL );
-        InitVar( @SpecializedFormatter_GetSpaceAfterOperandSeparator, 'SpecializedFormatter_GetSpaceAfterOperandSeparator', ID, StrL );
-        InitVar( @SpecializedFormatter_SetSpaceAfterOperandSeparator, 'SpecializedFormatter_SetSpaceAfterOperandSeparator', ID, StrL );
-        InitVar( @SpecializedFormatter_GetUpperCaseHex, 'SpecializedFormatter_GetUpperCaseHex', ID, StrL );
-        InitVar( @SpecializedFormatter_SetUpperCaseHex, 'SpecializedFormatter_SetUpperCaseHex', ID, StrL );
 
         // Formatter Options
+        InitVar( @Formatter_Format, 'Formatter_Format', ID, StrL );
+        InitVar( @Formatter_FormatCallback, 'Formatter_FormatCallback', ID, StrL );
+
         InitVar( @Formatter_GetUpperCasePrefixes, 'Formatter_GetUpperCasePrefixes', ID, StrL );
         InitVar( @Formatter_SetUpperCasePrefixes, 'Formatter_SetUpperCasePrefixes', ID, StrL );
         InitVar( @Formatter_GetUpperCaseMnemonics, 'Formatter_GetUpperCaseMnemonics', ID, StrL );

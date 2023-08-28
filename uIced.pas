@@ -530,7 +530,7 @@ type
 
   tIcedAssemblyScanMode = (
     asmEqual, asmWildcard
-    {$IF CompilerVersion >= 1}, asmRegExp{$IFEND} // XE // MS !!!
+    {$IF CompilerVersion >= 22}, asmRegExp{$IFEND} // XE
   );
 
   tIcedPointerScanProcessEvent = procedure( Current, Total : Cardinal; var Cancel : Boolean ) of object;
@@ -572,8 +572,6 @@ type
     function    PointerScan( Data : TMemoryStream; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
     function    ReferenceScan( Code : PByte; Size : Cardinal; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
     function    ReferenceScan( Data : TMemoryStream; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
-
-// MS
     function    AssemblyScan( Code : PByte; Size : Cardinal; Assembly : String; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
     function    AssemblyScan( Data : TMemoryStream; Assembly : String; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
     function    FindInstruction( Data : PByte; Size : Cardinal; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
@@ -607,7 +605,7 @@ procedure Test_Assemble( AOutput : TStringList; RIP : UInt64 = UInt64( $00001248
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 implementation
 
-{$IF CompilerVersion >= 1} // XE // MS !!!
+{$IF CompilerVersion >= 22} // XE
 uses
   RegularExpressions;
 {$IFEND}
@@ -1403,7 +1401,7 @@ begin
     ftGas         : fHandle := GasFormatter_Create( SymbolResolver, fOptionsProvider, Pointer( self ) );
     ftIntel       : fHandle := IntelFormatter_Create( SymbolResolver, fOptionsProvider, Pointer( self ) );
     ftFast        : fHandle := FastFormatter_Create( SymbolResolver, Pointer( self ) );
-    ftSpecialized : fHandle := SpecializedFormatter_Create( SymbolResolver, Pointer( self ) );
+    ftSpecialized : fHandle := SpecializedFormatter_Create( SymbolResolver, False, Pointer( self ) );
   else
     fHandle := MasmFormatter_Create( SymbolResolver, fOptionsProvider, Pointer( self ) );
   end;
@@ -1535,7 +1533,7 @@ begin
     ftGas         : GasFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
     ftIntel       : IntelFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
     ftFast        : FastFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
-    ftSpecialized : SpecializedFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
+    ftSpecialized : SpecializedFormatter_Format( fHandle, sftSymbol, Instruction, @tOutput[ 0 ], Length( tOutput ) );
   else
     MasmFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
   end;
@@ -1567,7 +1565,7 @@ begin
     ftGas         : GasFormatter_Format( fHandle, Instruction, AOutput, Size );
     ftIntel       : IntelFormatter_Format( fHandle, Instruction, AOutput, Size );
     ftFast        : FastFormatter_Format( fHandle, Instruction, AOutput, Size );
-    ftSpecialized : SpecializedFormatter_Format( fHandle, Instruction, AOutput, Size );
+    ftSpecialized : SpecializedFormatter_Format( fHandle, sftSymbol, Instruction, AOutput, Size );
   else
     MasmFormatter_Format( fHandle, Instruction, AOutput, Size );
   end;
@@ -1628,93 +1626,81 @@ begin
   if ( fType = ftSpecialized ) then
     begin
     // Specialized
-    result.UseHexPrefix                    := SpecializedFormatter_GetUseHexPrefix( fHandle );
-    result.AlwaysShowMemorySize            := SpecializedFormatter_GetAlwaysShowMemorySize( fHandle );
+    result.UseHexPrefix                    := SpecializedFormatter_GetUseHexPrefix( fHandle, sftSymbol );
+    result.AlwaysShowMemorySize            := SpecializedFormatter_GetAlwaysShowMemorySize( fHandle, sftSymbol );
     end;
 
   // Common
-  if ( fType in [ ftFast, ftSpecialized ] ) then
-    begin
-    result.SpaceAfterOperandSeparator      := SpecializedFormatter_GetSpaceAfterOperandSeparator( fHandle );
-    result.AlwaysShowSegmentRegister       := SpecializedFormatter_GetAlwaysShowSegmentRegister( fHandle );
-    result.UsePseudoOps                    := SpecializedFormatter_GetUsePseudoOps( fHandle );
-    result.RipRelativeAddresses            := SpecializedFormatter_GetRipRelativeAddresses( fHandle );
-    result.ShowSymbolAddress               := SpecializedFormatter_GetShowSymbolAddress( fHandle );
-    result.UpperCaseHex                    := SpecializedFormatter_GetUpperCaseHex( fHandle );
-    end
-  else
-    begin
-    result.SpaceAfterOperandSeparator      := Formatter_GetSpaceAfterOperandSeparator( fHandle );
-    result.AlwaysShowSegmentRegister       := Formatter_GetAlwaysShowSegmentRegister( fHandle );
-    result.UsePseudoOps                    := Formatter_GetUsePseudoOps( fHandle );
-    result.RipRelativeAddresses            := Formatter_GetRipRelativeAddresses( fHandle );
-    result.ShowSymbolAddress               := Formatter_GetShowSymbolAddress( fHandle );
-    result.UpperCaseHex                    := Formatter_GetUpperCaseHex( fHandle );
-    end;
+  result.SpaceAfterOperandSeparator      := Formatter_GetSpaceAfterOperandSeparator( fHandle, fType );
+  result.AlwaysShowSegmentRegister       := Formatter_GetAlwaysShowSegmentRegister( fHandle, fType );
+  result.UsePseudoOps                    := Formatter_GetUsePseudoOps( fHandle, fType );
+  result.RipRelativeAddresses            := Formatter_GetRipRelativeAddresses( fHandle, fType );
+  result.ShowSymbolAddress               := Formatter_GetShowSymbolAddress( fHandle, fType );
+  result.UpperCaseHex                    := Formatter_GetUpperCaseHex( fHandle, fType );
 
   if NOT ( fType in [ ftFast, ftSpecialized ] ) then
     begin
     // Common (All but Fast/Specialized)
-    result.UpperCasePrefixes               := Formatter_GetUpperCasePrefixes( fHandle );
-    result.UpperCaseMnemonics              := Formatter_GetUpperCaseMnemonics( fHandle );
-    result.UpperCaseRegisters              := Formatter_GetUpperCaseRegisters( fHandle );
-    result.UpperCaseKeyWords               := Formatter_GetUpperCaseKeyWords( fHandle );
-    result.UpperCaseDecorators             := Formatter_GetUpperCaseDecorators( fHandle );
-    result.UpperCaseEverything             := Formatter_GetUpperCaseEverything( fHandle );
-    result.FirstOperandCharIndex           := Formatter_GetFirstOperandCharIndex( fHandle );
-    result.TabSize                         := Formatter_GetTabSize( fHandle );
-    result.SpaceAfterMemoryBracket         := Formatter_GetSpaceAfterMemoryBracket( fHandle );
-    result.SpaceBetweenMemoryAddOperators  := Formatter_GetSpaceBetweenMemoryAddOperators( fHandle );
-    result.SpaceBetweenMemoryMulOperators  := Formatter_GetSpaceBetweenMemoryMulOperators( fHandle );
-    result.ScaleBeforeIndex                := Formatter_GetScaleBeforeIndex( fHandle );
-    result.AlwaysShowScale                 := Formatter_GetAlwaysShowScale( fHandle );
-    result.ShowZeroDisplacements           := Formatter_GetShowZeroDisplacements( fHandle );
-    Formatter_GetHexPrefix( fHandle, @C[ 0 ], Length( C ) );
+    result.UpperCasePrefixes               := Formatter_GetUpperCasePrefixes( fHandle, fType );
+    result.UpperCaseMnemonics              := Formatter_GetUpperCaseMnemonics( fHandle, fType );
+    result.UpperCaseRegisters              := Formatter_GetUpperCaseRegisters( fHandle, fType );
+    result.UpperCaseKeyWords               := Formatter_GetUpperCaseKeyWords( fHandle, fType );
+    result.UpperCaseDecorators             := Formatter_GetUpperCaseDecorators( fHandle, fType );
+    result.UpperCaseEverything             := Formatter_GetUpperCaseEverything( fHandle, fType );
+    result.FirstOperandCharIndex           := Formatter_GetFirstOperandCharIndex( fHandle, fType );
+    result.TabSize                         := Formatter_GetTabSize( fHandle, fType );
+    result.SpaceAfterMemoryBracket         := Formatter_GetSpaceAfterMemoryBracket( fHandle, fType );
+    result.SpaceBetweenMemoryAddOperators  := Formatter_GetSpaceBetweenMemoryAddOperators( fHandle, fType );
+    result.SpaceBetweenMemoryMulOperators  := Formatter_GetSpaceBetweenMemoryMulOperators( fHandle, fType );
+    result.ScaleBeforeIndex                := Formatter_GetScaleBeforeIndex( fHandle, fType );
+    result.AlwaysShowScale                 := Formatter_GetAlwaysShowScale( fHandle, fType );
+    result.ShowZeroDisplacements           := Formatter_GetShowZeroDisplacements( fHandle, fType );
+    Formatter_GetHexPrefix( fHandle, fType, @C[ 0 ], Length( C ) );
     result.HexPrefix                       := C;
-    Formatter_GetHexSuffix( fHandle, @C[ 0 ], Length( C ) );
+    Formatter_GetHexSuffix( fHandle, fType, @C[ 0 ], Length( C ) );
     result.HexSuffix                       := C;
-    result.HexDigitGroupSize               := Formatter_GetHexDigitGroupSize( fHandle );
-    Formatter_GetDecimalPrefix( fHandle, @C[ 0 ], Length( C ) );
+    result.HexDigitGroupSize               := Formatter_GetHexDigitGroupSize( fHandle, fType );
+    Formatter_GetDecimalPrefix( fHandle, fType, @C[ 0 ], Length( C ) );
     result.DecimalPrefix                   := C;
-    Formatter_GetDecimalSuffix( fHandle, @C[ 0 ], Length( C ) );
+    Formatter_GetDecimalSuffix( fHandle, fType, @C[ 0 ], Length( C ) );
     result.DecimalSuffix                   := C;
-    result.DecimalDigitGroupSize           := Formatter_GetDecimalDigitGroupSize( fHandle );
-    Formatter_GetOctalPrefix( fHandle, @C[ 0 ], Length( C ) );
+    result.DecimalDigitGroupSize           := Formatter_GetDecimalDigitGroupSize( fHandle, fType );
+    Formatter_GetOctalPrefix( fHandle, fType, @C[ 0 ], Length( C ) );
     result.OctalPrefix                     := C;
-    Formatter_GetOctalSuffix( fHandle, @C[ 0 ], Length( C ) );
+    Formatter_GetOctalSuffix( fHandle, fType, @C[ 0 ], Length( C ) );
     result.OctalSuffix                     := C;
-    result.OctalDigitGroupSize             := Formatter_GetOctalDigitGroupSize( fHandle );
-    Formatter_GetBinaryPrefix( fHandle, @C[ 0 ], Length( C ) );
+    result.OctalDigitGroupSize             := Formatter_GetOctalDigitGroupSize( fHandle, fType );
+    Formatter_GetBinaryPrefix( fHandle, fType, @C[ 0 ], Length( C ) );
     result.BinaryPrefix                    := C;
-    Formatter_GetBinarySuffix( fHandle, @C[ 0 ], Length( C ) );
+    Formatter_GetBinarySuffix( fHandle, fType, @C[ 0 ], Length( C ) );
     result.BinarySuffix                    := C;
-    result.BinaryDigitGroupSize            := Formatter_GetBinaryDigitGroupSize( fHandle );
-    Formatter_GetDigitSeparator( fHandle, @C[ 0 ], Length( C ) );
+    result.BinaryDigitGroupSize            := Formatter_GetBinaryDigitGroupSize( fHandle, fType );
+    Formatter_GetDigitSeparator( fHandle, fType, @C[ 0 ], Length( C ) );
     result.DigitSeparator                  := C;
-    result.LeadingZeros                    := Formatter_GetLeadingZeros( fHandle );
-    result.SmallHexNumbersInDecimal        := Formatter_GetSmallHexNumbersInDecimal( fHandle );
-    result.AddLeadingZeroToHexNumbers      := Formatter_GetAddLeadingZeroToHexNumbers( fHandle );
-    result.NumberBase                      := Formatter_GetNumberBase( fHandle );
-    result.BranchLeadingZeros              := Formatter_GetBranchLeadingZeros( fHandle );
-    result.SignedImmediateOperands         := Formatter_GetSignedImmediateOperands( fHandle );
-    result.SignedMemoryDisplacements       := Formatter_GetSignedMemoryDisplacements( fHandle );
-    result.DisplacementLeadingZeros        := Formatter_GetDisplacementLeadingZeros( fHandle );
-    result.MemorySizeOptions               := Formatter_GetMemorySizeOptions( fHandle );
-    result.ShowBranchSize                  := Formatter_GetShowBranchSize( fHandle );
-    result.PreferST0                       := Formatter_GetPreferST0( fHandle );
-    result.ShowUselessPrefixes             := Formatter_GetShowUselessPrefixes( fHandle );
-    result.CC_b                            := Formatter_GetCC_b( fHandle );
-    result.CC_ae                           := Formatter_GetCC_ae( fHandle );
-    result.CC_e                            := Formatter_GetCC_e( fHandle );
-    result.CC_ne                           := Formatter_GetCC_ne( fHandle );
-    result.CC_be                           := Formatter_GetCC_be( fHandle );
-    result.CC_a                            := Formatter_GetCC_a( fHandle );
-    result.CC_p                            := Formatter_GetCC_p( fHandle );
-    result.CC_np                           := Formatter_GetCC_np( fHandle );
-    result.CC_l                            := Formatter_GetCC_l( fHandle );
-    result.CC_ge                           := Formatter_GetCC_ge( fHandle );
-    result.CC_le                           := Formatter_GetCC_le( fHandle );
-    result.CC_g                            := Formatter_GetCC_g( fHandle );
+    result.LeadingZeros                    := Formatter_GetLeadingZeros( fHandle, fType );
+    result.SmallHexNumbersInDecimal        := Formatter_GetSmallHexNumbersInDecimal( fHandle, fType );
+    result.AddLeadingZeroToHexNumbers      := Formatter_GetAddLeadingZeroToHexNumbers( fHandle, fType );
+    result.NumberBase                      := Formatter_GetNumberBase( fHandle, fType );
+    result.BranchLeadingZeros              := Formatter_GetBranchLeadingZeros( fHandle, fType );
+    result.SignedImmediateOperands         := Formatter_GetSignedImmediateOperands( fHandle, fType );
+    result.SignedMemoryDisplacements       := Formatter_GetSignedMemoryDisplacements( fHandle, fType );
+    result.DisplacementLeadingZeros        := Formatter_GetDisplacementLeadingZeros( fHandle, fType );
+    result.MemorySizeOptions               := Formatter_GetMemorySizeOptions( fHandle, fType );
+    result.ShowBranchSize                  := Formatter_GetShowBranchSize( fHandle, fType );
+    result.PreferST0                       := Formatter_GetPreferST0( fHandle, fType );
+    result.ShowUselessPrefixes             := Formatter_GetShowUselessPrefixes( fHandle, fType );
+    result.CC_b                            := Formatter_GetCC_b( fHandle, fType );
+    result.CC_ae                           := Formatter_GetCC_ae( fHandle, fType );
+    result.CC_e                            := Formatter_GetCC_e( fHandle, fType );
+    result.CC_ne                           := Formatter_GetCC_ne( fHandle, fType );
+    result.CC_be                           := Formatter_GetCC_be( fHandle, fType );
+    result.CC_a                            := Formatter_GetCC_a( fHandle, fType );
+    result.CC_p                            := Formatter_GetCC_p( fHandle, fType );
+    result.CC_np                           := Formatter_GetCC_np( fHandle, fType );
+    result.CC_l                            := Formatter_GetCC_l( fHandle, fType );
+    result.CC_ge                           := Formatter_GetCC_ge( fHandle, fType );
+    result.CC_le                           := Formatter_GetCC_le( fHandle, fType );
+    result.CC_g                            := Formatter_GetCC_g( fHandle, fType );
     end;
 end;
 
@@ -2213,7 +2199,7 @@ begin
     Exit;
   fOptions.UseHexPrefix := Value;
 
-  {result := }SpecializedFormatter_SetUseHexPrefix( fHandle, Value );
+  {result := }SpecializedFormatter_SetUseHexPrefix( fHandle, sftSymbol, Value );
 end;
 
 function TIcedFormatter.GetAlwaysShowMemorySize : Boolean;
@@ -2242,7 +2228,7 @@ begin
     Exit;
   fOptions.AlwaysShowMemorySize := Value;
 
-  {result := }SpecializedFormatter_SetAlwaysShowMemorySize( fHandle, Value );
+  {result := }SpecializedFormatter_SetAlwaysShowMemorySize( fHandle, sftSymbol, Value );
 end;
 
 // Common
@@ -2255,10 +2241,7 @@ begin
     Exit;
 
   result := fOptions.SpaceAfterOperandSeparator;
-//  if ( fType in [ ftFast, ftSpecialized ] ) then
-//    result := SpecializedFormatter_GetSpaceAfterOperandSeparator( fHandle )
-//  else
-//    result := Formatter_GetSpaceAfterOperandSeparator( fHandle );
+//  result := Formatter_GetSpaceAfterOperandSeparator( fHandle );
 end;
 
 procedure TIcedFormatter.SetSpaceAfterOperandSeparator( Value : Boolean );
@@ -2272,10 +2255,7 @@ begin
     Exit;
   fOptions.SpaceAfterOperandSeparator := Value;
 
-  if ( fType in [ ftFast, ftSpecialized ] ) then
-    {result := }SpecializedFormatter_SetSpaceAfterOperandSeparator( fHandle, Value )
-  else
-    {result := }Formatter_SetSpaceAfterOperandSeparator( fHandle, Value );
+  {result := }Formatter_SetSpaceAfterOperandSeparator( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetAlwaysShowSegmentRegister : Boolean;
@@ -2287,11 +2267,7 @@ begin
     Exit;
 
   result := fOptions.AlwaysShowSegmentRegister;
-
-//  if ( fType in [ ftFast, ftSpecialized ] ) then
-//    {result := }SpecializedFormatter_GetAlwaysShowSegmentRegister( fHandle )
-//  else
-//    result := Formatter_GetAlwaysShowSegmentRegister( fHandle );
+//  result := Formatter_GetAlwaysShowSegmentRegister( fHandle );
 end;
 
 procedure TIcedFormatter.SetAlwaysShowSegmentRegister( Value : Boolean );
@@ -2304,10 +2280,7 @@ begin
     Exit;
   fOptions.AlwaysShowSegmentRegister := Value;
 
-  if ( fType in [ ftFast, ftSpecialized ] ) then
-    {result := }SpecializedFormatter_SetAlwaysShowSegmentRegister( fHandle, Value )
-  else
-    {result := }Formatter_SetAlwaysShowSegmentRegister( fHandle, Value );
+  {result := }Formatter_SetAlwaysShowSegmentRegister( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetUsePseudoOps : Boolean;
@@ -2319,11 +2292,7 @@ begin
     Exit;
 
   result := fOptions.UsePseudoOps;
-
-//  if ( fType in [ ftFast, ftSpecialized ] ) then
-//    result := SpecializedFormatter_GetUsePseudoOps( fHandle )
-//  else
-//    result := Formatter_GetUsePseudoOps( fHandle );
+//  result := Formatter_GetUsePseudoOps( fHandle );
 end;
 
 procedure TIcedFormatter.SetUsePseudoOps( Value : Boolean );
@@ -2336,10 +2305,7 @@ begin
     Exit;
   fOptions.UsePseudoOps := Value;
 
-  if ( fType in [ ftFast, ftSpecialized ] ) then
-    {result := }SpecializedFormatter_SetUsePseudoOps( fHandle, Value )
-  else
-    {result := }Formatter_SetUsePseudoOps( fHandle, Value );
+  {result := }Formatter_SetUsePseudoOps( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetRipRelativeAddresses : Boolean;
@@ -2351,11 +2317,7 @@ begin
     Exit;
 
   result := fOptions.RipRelativeAddresses;
-
-//  if ( fType in [ ftFast, ftSpecialized ] ) then
-//    result := SpecializedFormatter_GetRipRelativeAddresses( fHandle )
-//  else
-//    result := Formatter_GetRipRelativeAddresses( fHandle );
+//  result := Formatter_GetRipRelativeAddresses( fHandle );
 end;
 
 procedure TIcedFormatter.SetRipRelativeAddresses( Value : Boolean );
@@ -2368,10 +2330,7 @@ begin
     Exit;
   fOptions.RipRelativeAddresses := Value;
 
-  if ( fType in [ ftFast, ftSpecialized ] ) then
-    {result := }SpecializedFormatter_SetRipRelativeAddresses( fHandle, Value )
-  else
-    {result := }Formatter_SetRipRelativeAddresses( fHandle, Value );
+  {result := }Formatter_SetRipRelativeAddresses( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetShowSymbolAddress : Boolean;
@@ -2383,11 +2342,7 @@ begin
     Exit;
 
   result := fOptions.ShowSymbolAddress;
-
-//  if ( fType in [ ftFast, ftSpecialized ] ) then
-//    result := SpecializedFormatter_GetShowSymbolAddress( fHandle )
-//  else
-//    result := Formatter_GetShowSymbolAddress( fHandle );
+//  result := Formatter_GetShowSymbolAddress( fHandle );
 end;
 
 procedure TIcedFormatter.SetShowSymbolAddress( Value : Boolean );
@@ -2400,10 +2355,7 @@ begin
     Exit;
   fOptions.ShowSymbolAddress := Value;
 
-  if ( fType in [ ftFast, ftSpecialized ] ) then
-    {result := }SpecializedFormatter_SetShowSymbolAddress( fHandle, Value )
-  else
-    {result := }Formatter_SetShowSymbolAddress( fHandle, Value );
+  {result := }Formatter_SetShowSymbolAddress( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetUpperCaseHex : Boolean;
@@ -2415,11 +2367,7 @@ begin
     Exit;
 
   result := fOptions.UpperCaseHex;
-
-//  if ( fType in [ ftFast, ftSpecialized ] ) then
-//    result := SpecializedFormatter_GetUpperCaseHex( fHandle )
-//  else
-//    result := Formatter_GetUpperCaseHex( fHandle );
+//  result := Formatter_GetUpperCaseHex( fHandle );
 end;
 
 procedure TIcedFormatter.SetUpperCaseHex( Value : Boolean );
@@ -2432,10 +2380,7 @@ begin
     Exit;
   fOptions.UpperCaseHex := Value;
 
-  if ( fType in [ ftFast, ftSpecialized ] ) then
-    {result := }SpecializedFormatter_SetUpperCaseHex( fHandle, Value )
-  else
-    {result := }Formatter_SetUpperCaseHex( fHandle, Value );
+  {result := }Formatter_SetUpperCaseHex( fHandle, fType, Value );
 end;
 
 // Common (All but Fast/Specialized)
@@ -2465,7 +2410,7 @@ begin
     Exit;
   fOptions.UpperCasePrefixes := Value;
 
-  {result := }Formatter_SetUpperCasePrefixes( fHandle, Value );
+  {result := }Formatter_SetUpperCasePrefixes( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetUpperCaseMnemonics : Boolean;
@@ -2494,7 +2439,7 @@ begin
     Exit;
   fOptions.UpperCaseMnemonics := Value;
 
-  {result := }Formatter_SetUpperCaseMnemonics( fHandle, Value );
+  {result := }Formatter_SetUpperCaseMnemonics( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetUpperCaseRegisters : Boolean;
@@ -2523,7 +2468,7 @@ begin
     Exit;
   fOptions.UpperCaseRegisters := Value;
 
-  {result := }Formatter_SetUpperCaseRegisters( fHandle, Value );
+  {result := }Formatter_SetUpperCaseRegisters( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetUpperCaseKeyWords : Boolean;
@@ -2552,7 +2497,7 @@ begin
     Exit;
   fOptions.UpperCaseKeyWords := Value;
 
-  {result := }Formatter_SetUpperCaseKeyWords( fHandle, Value );
+  {result := }Formatter_SetUpperCaseKeyWords( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetUpperCaseDecorators : Boolean;
@@ -2581,7 +2526,7 @@ begin
     Exit;
   fOptions.UpperCaseDecorators := Value;
 
-  {result := }Formatter_SetUpperCaseDecorators( fHandle, Value );
+  {result := }Formatter_SetUpperCaseDecorators( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetUpperCaseEverything : Boolean;
@@ -2610,7 +2555,7 @@ begin
     Exit;
   fOptions.UpperCaseEverything := Value;
 
-  {result := }Formatter_SetUpperCaseEverything( fHandle, Value );
+  {result := }Formatter_SetUpperCaseEverything( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetFirstOperandCharIndex : Cardinal;
@@ -2639,7 +2584,7 @@ begin
     Exit;
   fOptions.FirstOperandCharIndex := Value;
 
-  {result := }Formatter_SetFirstOperandCharIndex( fHandle, Value );
+  {result := }Formatter_SetFirstOperandCharIndex( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetTabSize : Cardinal;
@@ -2668,7 +2613,7 @@ begin
     Exit;
   fOptions.TabSize := Value;
 
-  {result := }Formatter_SetTabSize( fHandle, Value );
+  {result := }Formatter_SetTabSize( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetSpaceAfterMemoryBracket : Boolean;
@@ -2697,7 +2642,7 @@ begin
     Exit;
   fOptions.SpaceAfterMemoryBracket := Value;
 
-  {result := }Formatter_SetSpaceAfterMemoryBracket( fHandle, Value );
+  {result := }Formatter_SetSpaceAfterMemoryBracket( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetSpaceBetweenMemoryAddOperators : Boolean;
@@ -2726,7 +2671,7 @@ begin
     Exit;
   fOptions.SpaceBetweenMemoryAddOperators := Value;
 
-  {result := }Formatter_SetSpaceBetweenMemoryAddOperators( fHandle, Value );
+  {result := }Formatter_SetSpaceBetweenMemoryAddOperators( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetSpaceBetweenMemoryMulOperators : Boolean;
@@ -2755,7 +2700,7 @@ begin
     Exit;
   fOptions.SpaceBetweenMemoryMulOperators := Value;
 
-  {result := }Formatter_SetSpaceBetweenMemoryMulOperators( fHandle, Value );
+  {result := }Formatter_SetSpaceBetweenMemoryMulOperators( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetScaleBeforeIndex : Boolean;
@@ -2784,7 +2729,7 @@ begin
     Exit;
   fOptions.ScaleBeforeIndex := Value;
 
-  {result := }Formatter_SetScaleBeforeIndex( fHandle, Value );
+  {result := }Formatter_SetScaleBeforeIndex( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetAlwaysShowScale : Boolean;
@@ -2813,7 +2758,7 @@ begin
     Exit;
   fOptions.AlwaysShowScale := Value;
 
-  {result := }Formatter_SetAlwaysShowScale( fHandle, Value );
+  {result := }Formatter_SetAlwaysShowScale( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetShowZeroDisplacements : Boolean;
@@ -2842,7 +2787,7 @@ begin
     Exit;
   fOptions.ShowZeroDisplacements := Value;
 
-  {result := }Formatter_SetShowZeroDisplacements( fHandle, Value );
+  {result := }Formatter_SetShowZeroDisplacements( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetHexPrefix : AnsiString;
@@ -2874,7 +2819,7 @@ begin
     Exit;
   fOptions.HexPrefix := Value;
 
-  {result := }Formatter_SetHexPrefix( fHandle, PAnsiChar( Value ) );
+  {result := }Formatter_SetHexPrefix( fHandle, fType, PAnsiChar( Value ) );
 end;
 
 function TIcedFormatter.GetHexSuffix : AnsiString;
@@ -2906,7 +2851,7 @@ begin
     Exit;
   fOptions.HexSuffix := Value;
 
-  {result := }Formatter_SetHexSuffix( fHandle, PAnsiChar( Value ) );
+  {result := }Formatter_SetHexSuffix( fHandle, fType, PAnsiChar( Value ) );
 end;
 
 function TIcedFormatter.GetHexDigitGroupSize : Cardinal;
@@ -2935,7 +2880,7 @@ begin
     Exit;
   fOptions.HexDigitGroupSize := Value;
 
-  {result := }Formatter_SetHexDigitGroupSize( fHandle, Value );
+  {result := }Formatter_SetHexDigitGroupSize( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetDecimalPrefix : AnsiString;
@@ -2967,7 +2912,7 @@ begin
     Exit;
   fOptions.DecimalPrefix := Value;
 
-  {result := }Formatter_SetDecimalPrefix( fHandle, PAnsiChar( Value ) );
+  {result := }Formatter_SetDecimalPrefix( fHandle, fType, PAnsiChar( Value ) );
 end;
 
 function TIcedFormatter.GetDecimalSuffix : AnsiString;
@@ -2999,7 +2944,7 @@ begin
     Exit;
   fOptions.DecimalSuffix := Value;
 
-  {result := }Formatter_SetDecimalSuffix( fHandle, PAnsiChar( Value ) );
+  {result := }Formatter_SetDecimalSuffix( fHandle, fType, PAnsiChar( Value ) );
 end;
 
 function TIcedFormatter.GetDecimalDigitGroupSize : Cardinal;
@@ -3028,7 +2973,7 @@ begin
     Exit;
   fOptions.DecimalDigitGroupSize := Value;
 
-  {result := }Formatter_SetDecimalDigitGroupSize( fHandle, Value );
+  {result := }Formatter_SetDecimalDigitGroupSize( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetOctalPrefix : AnsiString;
@@ -3060,7 +3005,7 @@ begin
     Exit;
   fOptions.OctalPrefix := Value;
 
-  {result := }Formatter_SetOctalPrefix( fHandle, PAnsiChar( Value ) );
+  {result := }Formatter_SetOctalPrefix( fHandle, fType, PAnsiChar( Value ) );
 end;
 
 function TIcedFormatter.GetOctalSuffix : AnsiString;
@@ -3092,7 +3037,7 @@ begin
     Exit;
   fOptions.OctalSuffix := Value;
 
-  {result := }Formatter_SetOctalSuffix( fHandle, PAnsiChar( Value ) );
+  {result := }Formatter_SetOctalSuffix( fHandle, fType, PAnsiChar( Value ) );
 end;
 
 function TIcedFormatter.GetOctalDigitGroupSize : Cardinal;
@@ -3121,7 +3066,7 @@ begin
     Exit;
   fOptions.OctalDigitGroupSize := Value;
 
-  {result := }Formatter_SetOctalDigitGroupSize( fHandle, Value );
+  {result := }Formatter_SetOctalDigitGroupSize( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetBinaryPrefix : AnsiString;
@@ -3153,7 +3098,7 @@ begin
     Exit;
   fOptions.BinaryPrefix := Value;
 
-  {result := }Formatter_SetBinaryPrefix( fHandle, PAnsiChar( Value ) );
+  {result := }Formatter_SetBinaryPrefix( fHandle, fType, PAnsiChar( Value ) );
 end;
 
 function TIcedFormatter.GetBinarySuffix : AnsiString;
@@ -3185,7 +3130,7 @@ begin
     Exit;
   fOptions.BinarySuffix := Value;
 
-  {result := }Formatter_SetBinarySuffix( fHandle, PAnsiChar( Value ) );
+  {result := }Formatter_SetBinarySuffix( fHandle, fType, PAnsiChar( Value ) );
 end;
 
 function TIcedFormatter.GetBinaryDigitGroupSize : Cardinal;
@@ -3214,7 +3159,7 @@ begin
     Exit;
   fOptions.BinaryDigitGroupSize := Value;
 
-  {result := }Formatter_SetBinaryDigitGroupSize( fHandle, Value );
+  {result := }Formatter_SetBinaryDigitGroupSize( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetDigitSeparator : AnsiString;
@@ -3246,7 +3191,7 @@ begin
     Exit;
   fOptions.DigitSeparator := Value;
 
-  {result := }Formatter_SetDigitSeparator( fHandle, PAnsiChar( Value ) );
+  {result := }Formatter_SetDigitSeparator( fHandle, fType, PAnsiChar( Value ) );
 end;
 
 function TIcedFormatter.GetLeadingZeros : Boolean;
@@ -3275,7 +3220,7 @@ begin
     Exit;
   fOptions.LeadingZeros := Value;
 
-  {result := }Formatter_SetLeadingZeros( fHandle, Value );
+  {result := }Formatter_SetLeadingZeros( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetSmallHexNumbersInDecimal : Boolean;
@@ -3304,7 +3249,7 @@ begin
     Exit;
   fOptions.SmallHexNumbersInDecimal := Value;
 
-  {result := }Formatter_SetSmallHexNumbersInDecimal( fHandle, Value );
+  {result := }Formatter_SetSmallHexNumbersInDecimal( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetAddLeadingZeroToHexNumbers : Boolean;
@@ -3333,7 +3278,7 @@ begin
     Exit;
   fOptions.AddLeadingZeroToHexNumbers := Value;
 
-  {result := }Formatter_SetAddLeadingZeroToHexNumbers( fHandle, Value );
+  {result := }Formatter_SetAddLeadingZeroToHexNumbers( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetNumberBase : TNumberBase;
@@ -3362,7 +3307,7 @@ begin
     Exit;
   fOptions.NumberBase := Value;
 
-  {result := }Formatter_SetNumberBase( fHandle, Value );
+  {result := }Formatter_SetNumberBase( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetBranchLeadingZeros : Boolean;
@@ -3391,7 +3336,7 @@ begin
     Exit;
   fOptions.BranchLeadingZeros := Value;
 
-  {result := }Formatter_SetBranchLeadingZeros( fHandle, Value );
+  {result := }Formatter_SetBranchLeadingZeros( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetSignedImmediateOperands : Boolean;
@@ -3420,7 +3365,7 @@ begin
     Exit;
   fOptions.SignedImmediateOperands := Value;
 
-  {result := }Formatter_SetSignedImmediateOperands( fHandle, Value );
+  {result := }Formatter_SetSignedImmediateOperands( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetSignedMemoryDisplacements : Boolean;
@@ -3449,7 +3394,7 @@ begin
     Exit;
   fOptions.SignedMemoryDisplacements := Value;
 
-  {result := }Formatter_SetSignedMemoryDisplacements( fHandle, Value );
+  {result := }Formatter_SetSignedMemoryDisplacements( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetDisplacementLeadingZeros : Boolean;
@@ -3478,7 +3423,7 @@ begin
     Exit;
   fOptions.DisplacementLeadingZeros := Value;
 
-  {result := }Formatter_SetDisplacementLeadingZeros( fHandle, Value );
+  {result := }Formatter_SetDisplacementLeadingZeros( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetMemorySizeOptions : TMemorySizeOptions;
@@ -3507,7 +3452,7 @@ begin
     Exit;
   fOptions.MemorySizeOptions := Value;
 
-  {result := }Formatter_SetMemorySizeOptions( fHandle, Value );
+  {result := }Formatter_SetMemorySizeOptions( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetShowBranchSize : Boolean;
@@ -3536,7 +3481,7 @@ begin
     Exit;
   fOptions.ShowBranchSize := Value;
 
-  {result := }Formatter_SetShowBranchSize( fHandle, Value );
+  {result := }Formatter_SetShowBranchSize( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetPreferST0 : Boolean;
@@ -3565,7 +3510,7 @@ begin
     Exit;
   fOptions.PreferST0 := Value;
 
-  {result := }Formatter_SetPreferST0( fHandle, Value );
+  {result := }Formatter_SetPreferST0( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetShowUselessPrefixes : Boolean;
@@ -3594,7 +3539,7 @@ begin
     Exit;
   fOptions.ShowUselessPrefixes := Value;
 
-  {result := }Formatter_SetShowUselessPrefixes( fHandle, Value );
+  {result := }Formatter_SetShowUselessPrefixes( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetCC_b : TCC_b;
@@ -3623,7 +3568,7 @@ begin
     Exit;
   fOptions.CC_b := Value;
 
-  {result := }Formatter_SetCC_b( fHandle, Value );
+  {result := }Formatter_SetCC_b( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetCC_ae : TCC_ae;
@@ -3652,7 +3597,7 @@ begin
     Exit;
   fOptions.CC_ae := Value;
 
-  {result := }Formatter_SetCC_ae( fHandle, Value );
+  {result := }Formatter_SetCC_ae( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetCC_e : TCC_e;
@@ -3681,7 +3626,7 @@ begin
     Exit;
   fOptions.CC_e := Value;
 
-  {result := }Formatter_SetCC_e( fHandle, Value );
+  {result := }Formatter_SetCC_e( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetCC_ne : TCC_ne;
@@ -3710,7 +3655,7 @@ begin
     Exit;
   fOptions.CC_ne := Value;
 
-  {result := }Formatter_SetCC_ne( fHandle, Value );
+  {result := }Formatter_SetCC_ne( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetCC_be : TCC_be;
@@ -3739,7 +3684,7 @@ begin
     Exit;
   fOptions.CC_be := Value;
 
-  {result := }Formatter_SetCC_be( fHandle, Value );
+  {result := }Formatter_SetCC_be( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetCC_a : TCC_a;
@@ -3768,7 +3713,7 @@ begin
     Exit;
   fOptions.CC_a := Value;
 
-  {result := }Formatter_SetCC_a( fHandle, Value );
+  {result := }Formatter_SetCC_a( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetCC_p : TCC_p;
@@ -3797,7 +3742,7 @@ begin
     Exit;
   fOptions.CC_p := Value;
 
-  {result := }Formatter_SetCC_p( fHandle, Value );
+  {result := }Formatter_SetCC_p( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetCC_np : TCC_np;
@@ -3826,7 +3771,7 @@ begin
     Exit;
   fOptions.CC_np := Value;
 
-  {result := }Formatter_SetCC_np( fHandle, Value );
+  {result := }Formatter_SetCC_np( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetCC_l : TCC_l;
@@ -3855,7 +3800,7 @@ begin
     Exit;
   fOptions.CC_l := Value;
 
-  {result := }Formatter_SetCC_l( fHandle, Value );
+  {result := }Formatter_SetCC_l( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetCC_ge : TCC_ge;
@@ -3884,7 +3829,7 @@ begin
     Exit;
   fOptions.CC_ge := Value;
 
-  {result := }Formatter_SetCC_ge( fHandle, Value );
+  {result := }Formatter_SetCC_ge( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetCC_le : TCC_le;
@@ -3913,7 +3858,7 @@ begin
     Exit;
   fOptions.CC_le := Value;
 
-  {result := }Formatter_SetCC_le( fHandle, Value );
+  {result := }Formatter_SetCC_le( fHandle, fType, Value );
 end;
 
 function TIcedFormatter.GetCC_g : TCC_g;
@@ -3942,7 +3887,7 @@ begin
     Exit;
   fOptions.CC_g := Value;
 
-  {result := }Formatter_SetCC_g( fHandle, Value );
+  {result := }Formatter_SetCC_g( fHandle, fType, Value );
 end;
 
 {$IFDEF AssemblyTools}
