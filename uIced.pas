@@ -5751,13 +5751,14 @@ var
   done        : UInt64;
   StrL        : TStringList;
   iCnt        : Cardinal;
-  sInstruction: string;
+  sInstruction: TStringList;
   cInstruction: Array [ 0..255 ] of AnsiChar;
   {$IF Declared( RegularExpressions )}
   RegEx       : TRegEx;
   {$IFEND}
   b           : Boolean;
   Offset      : UInt64;
+  i, j        : Integer;
 
   Upd         : Cardinal;
   UpdBytes    : Cardinal;
@@ -5782,25 +5783,25 @@ begin
   StrL := TStringList.Create;
   StrL.Text := LowerCase( Trim( Assembly ) );
 
-  for iCnt := StrL.Count-1 downTo 0 do
+  for i := StrL.Count-1 downTo 0 do
     begin
-    StrL[ iCnt ] := Trim( StrL[ iCnt ] );
-    if ( StrL[ iCnt ] = '' ) then
-      StrL.Delete( iCnt )
-    else if ( Copy( StrL[ iCnt ], 1, 4 ) = NOP + ':' ) then
+    StrL[ i ] := Trim( StrL[ i ] );
+    if ( StrL[ i ] = '' ) then
+      StrL.Delete( i )
+    else if ( Copy( StrL[ i ], 1, 4 ) = NOP + ':' ) then
       begin
-      Upd := StrToIntDef( Copy( StrL[ iCnt ], 5, Length( StrL[ iCnt ] )-4 ), 1);
+      Upd := StrToIntDef( Copy( StrL[ i ], 5, Length( StrL[ i ] )-4 ), 1);
       while ( Upd > 1 ) do
         begin
-        StrL.Insert( iCnt+1, NOP );
+        StrL.Insert( i+1, NOP );
         Dec( Upd );
         end;
-      StrL[ iCnt ] := NOP;
+      StrL[ i ] := NOP;
       end;
     end;
 
   iCnt := 0;
-  sInstruction := '';
+  sInstruction := TStringList.Create;
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   Offset := CodeOffset;
   {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
@@ -5847,27 +5848,46 @@ begin
 
         if ( iCnt = StrL.Count-1 ) then
           begin
+          sInstruction.Add( String( cInstruction ) );
+          j := 0;
+          for i := sInstruction.Count-1 downTo 0 do
+            begin
+            if ( LowerCase( sInstruction[ i ] ) = NOP ) then
+              begin
+              sInstruction.Delete( i );
+              Inc( j );
+              end
+            else
+              begin
+              if ( j > 0 ) then
+                sInstruction.Insert( i, NOP + ':' + IntToStr( j ) );
+              j := 0;
+              end;
+            end;
+          if ( j > 0 ) then
+            sInstruction.Insert( 0, NOP + ':' + IntToStr( j ) );
+
           if ( result >= Length( results ) ) then
             SetLength( results, Length( results )+BLOCK_SIZE );
           {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
           Results[ result ].Origin      := Offset;
-          Results[ result ].Instruction := sInstruction + String( cInstruction );
+          Results[ result ].Instruction := Trim( sInstruction.Text );
           {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
           Inc( result );
 
           iCnt := 0;
-          sInstruction := '';
+          sInstruction.Clear;
           end
         else
           begin
           Inc( iCnt );
-          sInstruction := sInstruction + String( cInstruction ) + #13#10;
+          sInstruction.Add( String( cInstruction ) );
           end;
         end
       else
         begin
         iCnt := 0;
-        sInstruction := '';
+        sInstruction.Clear;
         end;
 
       {$IF Declared( RegularExpressions )}
@@ -5878,7 +5898,7 @@ begin
     else
       begin
       iCnt := 0;
-      sInstruction := '';
+      sInstruction.Clear;
       {$IF Declared( RegularExpressions )}
       if Mode = asmRegExp then
         RegEx := TRegEx.Create( StrL[ iCnt ] );
@@ -5887,7 +5907,7 @@ begin
 
     {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
     done := done + Instruction.len;
-    Inc( Code, Instruction.len );
+//    Inc( Code, Instruction.len );
 //    Inc( CodeOffset, Instruction.len );
     if ( Upd > Instruction.len )  then
       Dec( Upd, Instruction.len )
