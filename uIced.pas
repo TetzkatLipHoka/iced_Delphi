@@ -5745,6 +5745,7 @@ function TIced.AssemblyScan( Code : PByte; Size : Cardinal; Assembly : String; v
 const
   BLOCK_SIZE     = 10000;
   UPDATE_PERCENT = 0.25;
+  NOP            = 'nop';
 var
   Instruction : TInstruction;
   done        : UInt64;
@@ -5785,7 +5786,17 @@ begin
     begin
     StrL[ iCnt ] := Trim( StrL[ iCnt ] );
     if ( StrL[ iCnt ] = '' ) then
-      StrL.Delete( iCnt );
+      StrL.Delete( iCnt )
+    else if ( Copy( StrL[ iCnt ], 1, 4 ) = NOP + ':' ) then
+      begin
+      Upd := StrToIntDef( Copy( StrL[ iCnt ], 5, Length( StrL[ iCnt ] )-4 ), 1);
+      while ( Upd > 1 ) do
+        begin
+        StrL.Insert( iCnt+1, NOP );
+        Dec( Upd );
+        end;
+      StrL[ iCnt ] := NOP;
+      end;
     end;
 
   iCnt := 0;
@@ -5846,32 +5857,37 @@ begin
 
           iCnt := 0;
           sInstruction := '';
-
-          {$IF Declared( RegularExpressions )}
-          if Mode = asmRegExp then
-            RegEx := TRegEx.Create( StrL[ 0 ] );
-          {$IFEND Declared( RegularExpressions )}
           end
         else
           begin
           Inc( iCnt );
           sInstruction := sInstruction + String( cInstruction ) + #13#10;
-          {$IF Declared( RegularExpressions )}
-          if Mode = asmRegExp then
-            RegEx := TRegEx.Create( StrL[ iCnt ] );
-          {$IFEND Declared( RegularExpressions )}
           end;
+        end
+      else
+        begin
+        iCnt := 0;
+        sInstruction := '';
         end;
+
+      {$IF Declared( RegularExpressions )}
+      if Mode = asmRegExp then
+        RegEx := TRegEx.Create( StrL[ iCnt ] );
+      {$IFEND Declared( RegularExpressions )}
       end
     else
       begin
       iCnt := 0;
       sInstruction := '';
+      {$IF Declared( RegularExpressions )}
+      if Mode = asmRegExp then
+        RegEx := TRegEx.Create( StrL[ iCnt ] );
+      {$IFEND Declared( RegularExpressions )}
       end;
 
     {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
     done := done + Instruction.len;
-//    Inc( Code, Instruction.len );
+    Inc( Code, Instruction.len );
 //    Inc( CodeOffset, Instruction.len );
     if ( Upd > Instruction.len )  then
       Dec( Upd, Instruction.len )
