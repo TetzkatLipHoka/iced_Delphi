@@ -3,7 +3,7 @@ unit uIced;
 {
   Iced (Dis)Assembler
 
-  TetzkatLipHoka 2022-2023
+  TetzkatLipHoka 2022-2024
 }
 
 // MS
@@ -4410,6 +4410,7 @@ var
   sCom    : string;
   iPos    : Integer;
   A, B    : SmallInt;
+  IsDATA  : Boolean;
 begin
   result := false;
   if ( StrL_Hex <> nil ) then
@@ -4439,9 +4440,12 @@ begin
   tStrL   := TStringList.Create;
 
   // Merge/Join Lines
+  IsDATA := False;
   i := 0;
   while ( i < StrL_In.Count ) do
     begin
+    if ( CompareText( StrL_In[ i ], '[DATA]' ) = 0 ) then
+      IsDATA := True;
     if IsHex( StrL_In[ i ] ) then
       begin
       sHex := Trim( StrL_In[ i ] );
@@ -4454,17 +4458,41 @@ begin
       end
     else
       tStrL.Add( StrL_In[ i ] );
+    if ( CompareText( StrL_In[ i ], '[/DATA]' ) = 0 ) then
+      IsDATA := False;
     Inc( i );
     end;
   StrL_In.Assign( tStrL );
   tStrL.free;
 
+  IsDATA := False;
   for i := 0 to StrL_In.Count-1 do
     begin
-    if ( StrL_In[ i ] = '' ) then
+    StrL_In[ i ] := StringReplace( StrL_In[ i ], #9, #32, [rfReplaceAll] );
+    StrL_In[ i ] := Trim( StrL_In[ i ] );
+
+    if ( CompareText( StrL_In[ i ], '[DATA]' ) = 0 ) then
+      begin
+      IsDATA := True;
+      A := 0;
+      end
+    else if ( CompareText( StrL_In[ i ], '[/DATA]' ) = 0 ) then
+      begin
+      IsDATA := False;
+      A := 1;
+      end
+    else
+      A := -1;
+
+    if ( StrL_In[ i ] = '' ) OR ( A >= 0 ) then
       begin
       if ( StrL_Hex <> nil ) then
-        StrL_Hex.Add( '' );
+        begin
+        if ( j >= 0 ) then
+          StrL_Hex.Add( StrL_In[ i ] )
+        else
+          StrL_Hex.Add( '' );
+        end;
       if ( StrL_Assembly <> nil ) then
         StrL_Assembly.Add( '' );
       {$IFDEF AssemblyTools}
@@ -4482,8 +4510,28 @@ begin
       {$ENDIF AssemblyTools}
       continue;
       end;
-    StrL_In[ i ] := Trim( StrL_In[ i ] );
-    StrL_In[ i ] := StringReplace( StrL_In[ i ], #9, #32, [rfReplaceAll] );
+
+    if IsDATA then
+      begin
+      if Assigned( StrL_Hex ) then
+        StrL_Hex.Add( StrL_In[ i ] );
+      if Assigned( StrL_Assembly ) then
+        StrL_Assembly.Add( StrL_In[ i ] );
+      {$IFDEF AssemblyTools}
+      if ( Details <> nil ) then
+        begin
+        if ( Details^.Count >= Length( Details^.Items ) ) then
+          SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
+
+        FillChar( Details^.Items[ Details^.Count ], SizeOf( TIcedDetail ), 0 );
+        {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND}
+        Details^.Items[ Details^.Count ].Offset := CodeOffset;
+        {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND}
+        Inc( Details^.Count );
+        end;
+      {$ENDIF AssemblyTools}
+      continue;
+      end;
 
     sCom := '';
     iPos := -1;
@@ -4641,7 +4689,7 @@ begin
             end;
 
           Inc( bNOP );
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -4698,7 +4746,7 @@ begin
             Inc( Details^.Count );
             end;
           Inc( bNOP );
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -4736,7 +4784,7 @@ begin
           if ( bNOP = 0 ) then
             Inc( Details^.Count );
           Inc( bNOP );
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -4782,7 +4830,7 @@ begin
           if ( bNOP = 0 ) then
             Inc( Details^.Count );
           Inc( bNOP );
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -4825,7 +4873,7 @@ begin
             StrL_Assembly.Add( String( tOutput ) );
             end;
 
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -4876,7 +4924,7 @@ begin
             StrL_Assembly.Add( String( tOutput ) );
             end;
 
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -4906,7 +4954,7 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -4980,7 +5028,7 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -5031,7 +5079,7 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -5073,7 +5121,7 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -5117,7 +5165,7 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -5159,7 +5207,7 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -5200,7 +5248,7 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -5233,7 +5281,7 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
-          if bDecode AND ( bNOP <> BLOCKSIZE_NOP ) then
+          if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
@@ -5759,6 +5807,7 @@ var
   b           : Boolean;
   Offset      : UInt64;
   i, j        : Integer;
+  S, ts       : string;
 
   Upd         : Cardinal;
   UpdBytes    : Cardinal;
@@ -5785,18 +5834,80 @@ begin
 
   for i := StrL.Count-1 downTo 0 do
     begin
-    StrL[ i ] := Trim( StrL[ i ] );
-    if ( StrL[ i ] = '' ) then
+    S := Trim( StrL[ i ] );
+    S := StringReplace( S, #9, ' ', [ rfReplaceAll ] );
+    if ( S = '' ) then
       StrL.Delete( i )
-    else if ( Copy( StrL[ i ], 1, 4 ) = NOP + ':' ) then
+    else if ( Copy( S, 1, 4 ) = NOP + ':' ) then
       begin
-      Upd := StrToIntDef( Copy( StrL[ i ], 5, Length( StrL[ i ] )-4 ), 1);
+      Upd := StrToIntDef( Copy( S, 5, Length( S )-4 ), 1);
       while ( Upd > 1 ) do
         begin
         StrL.Insert( i+1, NOP );
         Dec( Upd );
         end;
       StrL[ i ] := NOP;
+      end
+    else
+      begin
+      tS := '';
+      while ( tS <> S ) do
+        begin
+        tS := S;
+        S := StringReplace( S, '  ', ' ', [ rfReplaceAll ] );
+        end;
+
+      if ( Mode <> asmRegExp ) then 
+        begin
+        if fFormatter.fOptions.SpaceAfterOperandSeparator then
+          S := StringReplace( S, ',', ', ', [ rfReplaceAll ] )
+        else
+          S := StringReplace( S, ', ', ',', [ rfReplaceAll ] );        
+        
+        if fFormatter.fOptions.SpaceAfterMemoryBracket then
+          begin
+          S := StringReplace( S, '[', '[ ', [ rfReplaceAll ] );
+          S := StringReplace( S, ']', ' ]', [ rfReplaceAll ] );
+          end
+        else
+          begin
+          S := StringReplace( S, '[ ', '[', [ rfReplaceAll ] );
+          S := StringReplace( S, ' ]', ']', [ rfReplaceAll ] );
+          end;
+          
+        if fFormatter.fOptions.SpaceBetweenMemoryAddOperators then        
+          begin
+          S := StringReplace( S, '+', ' + ', [ rfReplaceAll ] );
+          S := StringReplace( S, '-', ' - ', [ rfReplaceAll ] );
+          end
+        else
+          begin
+          S := StringReplace( S, ' +', '+', [ rfReplaceAll ] );
+          S := StringReplace( S, '+ ', '+', [ rfReplaceAll ] );
+          S := StringReplace( S, ' -', '-', [ rfReplaceAll ] );
+          S := StringReplace( S, '- ', '-', [ rfReplaceAll ] );        
+          end;          
+        end;
+      
+      if ( Mode = asmEqual ) then 
+        begin
+        if fFormatter.fOptions.SpaceBetweenMemoryMulOperators then
+          S := StringReplace( S, '*', ' * ', [ rfReplaceAll ] )
+        else
+          begin
+          S := StringReplace( S, ' *', '*', [ rfReplaceAll ] );
+          S := StringReplace( S, '* ', '*', [ rfReplaceAll ] );
+          end;
+        end;
+        
+      S := StringReplace( S, ' ,', ',', [ rfReplaceAll ] );
+      tS := '';
+      while ( tS <> S ) do
+        begin
+        tS := S;
+        S := StringReplace( S, '  ', ' ', [ rfReplaceAll ] );
+        end;
+      StrL[ i ] := S;
       end;
     end;
 

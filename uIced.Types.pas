@@ -3,7 +3,7 @@ unit uIced.Types;
 {
   Iced (Dis)Assembler
 
-  TetzkatLipHoka 2022-2023
+  TetzkatLipHoka 2022-2024
 }
 
 (*
@@ -330,7 +330,8 @@ interface
 {$IFEND}
 {$WARN UNSAFE_TYPE OFF}
 
-{$DEFINE ICED_1190} // v1.1.9.0 changed TInstruction-Layout
+{$DEFINE ICED_1210} // v1.2.1.0 changed TInstruction-Layout
+{.$DEFINE ICED_1190} // v1.1.9.0 changed TInstruction-Layout
 {$DEFINE INCLUDE_STRINGS} // ~500kb DCU
 
 {$IF CompilerVersion < 23}
@@ -51332,9 +51333,22 @@ type
   TInstruction = {$IFDEF UNICODE}record{$ELSE}object{$ENDIF}
     next_rip      : UInt64;
     mem_displ     : UInt64;
+
+    {$IF Defined( ICED_1210 )}
+    op_kinds      : Array [ 0..3 ] of TOpKind;
     flags1        : Cardinal; // InstrFlags1
     immediate     : Cardinal;
-    {$IFDEF ICED_1190}
+    regs          : Array [ 0..3 ] of TRegister;
+    code          : TCode;
+    scale         : TInstrScale;
+    mem_base_reg  : TRegister;
+    mem_index_reg : TRegister;
+    displ_size    : Byte;
+    len           : Byte;
+    pad           : Byte;
+    {$ELSEIF Defined( ICED_1190 )}
+    flags1        : Cardinal; // InstrFlags1
+    immediate     : Cardinal;
     regs          : Array [ 0..3 ] of TRegister;
     op_kinds      : Array [ 0..3 ] of TOpKind;
     code          : TCode;
@@ -51345,6 +51359,8 @@ type
     pad           : Byte;
     scale         : TInstrScale;
     {$ELSE}
+    flags1        : Cardinal; // InstrFlags1
+    immediate     : Cardinal;
     code          : TCode;
     mem_base_reg  : TRegister;
     mem_index_reg : TRegister;
@@ -51354,7 +51370,7 @@ type
     displ_size    : Byte;
     len           : Byte;
     pad           : Byte;
-    {$ENDIF ICED_1190}
+    {$IFEND ICED_1190}
 
     function  GetRIP : UInt64; {$IF CompilerVersion >= 23}inline;{$IFEND}
     procedure SetRIP( Value : UInt64 ); {$IF CompilerVersion >= 23}inline;{$IFEND}
