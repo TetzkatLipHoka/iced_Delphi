@@ -7,6 +7,7 @@ unit uIced;
 }
 
 // MS
+// Finish details ..
 //    function    FindPreviousInstruction( Code : TMemoryStream; Address : UInt64; var Offset : UInt64; InstructionCount : Word = 1; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : pIcedDetail = nil ) : Cardinal; overload;
 //    function    FindPreviousInstruction( Code : PByte; Size : Cardinal; Address : UInt64; var Offset : UInt64; InstructionCount : Word = 1; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : pIcedDetail = nil ) : Cardinal; overload;
 //    function    FindPreviousInstruction( Code : TMemoryStream; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; DesiredInstructionOffset : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : pIcedDetail = nil ) : Cardinal; overload;
@@ -894,6 +895,7 @@ begin
   Details.Items[ Details.Count ].Size                 := Instruction.len;
 
   FillChar( Details.Items[ Details.Count ].Registers_, SizeOf( Details.Items[ Details.Count ].Registers_ ), 0 ); // MS ?
+
 //  Details.Items[ Details.Count ].Registers_.Target    := Instruction. // MS working for all but lea
 //  Details.Items[ Details.Count ].Registers_.Source    := Instruction.
 //  Details.Items[ Details.Count ].Registers_.Parameter := Instruction.
@@ -924,10 +926,11 @@ If Length = 3 or Displacement starts at 3 its not used
 }
 
   Decoder_GetConstantOffsets( fHandle, Instruction, Offsets );
+
   {if ForceMask AND ( Offsets.displacement_offset <> 0 ) then
     Details.Items[ Details.Count ].Mask := True
   else} if ( Offsets.displacement_offset <> 0 ) AND ( Offsets.displacement_size = 4 ) then
-    Details.Items[ Details.Count ].Mask := ( ABS( Integer( Instruction.mem_displ-Instruction.Rip-Instruction.Len ) ) >= $10000 ); // value is bigger than 65535 (positive and negative)
+    Details.Items[ Details.Count ].Mask := ( ABS( Integer( Instruction.mem_displ-Instruction.Rip-Instruction.Len ) ) >= MASKING_OFFSET ); // value is bigger than 65535 (positive and negative)
 
   if Details.Items[ Details.Count ].IsJump AND ( ( Instruction.op_kinds[ 0 ] <> okRegister_ ) OR ( Instruction.mem_displ <> 0 ) ) then
     begin
@@ -4474,17 +4477,17 @@ begin
     if ( CompareText( StrL_In[ i ], '[DATA]' ) = 0 ) then
       begin
       IsDATA := True;
-      A := 0;
+      j := 0;
       end
     else if ( CompareText( StrL_In[ i ], '[/DATA]' ) = 0 ) then
       begin
       IsDATA := False;
-      A := 1;
+      j := 1;
       end
     else
-      A := -1;
+      j := -1;
 
-    if ( StrL_In[ i ] = '' ) OR ( A >= 0 ) then
+    if ( StrL_In[ i ] = '' ) OR ( j >= 0 ) then
       begin
       if ( StrL_Hex <> nil ) then
         begin
@@ -4693,12 +4696,10 @@ begin
             Continue;
           end;
 
-        if ( bNOP >= 1 ) then
+        if ( bNOP > 1 ) then
           begin
           Details^.Items[ Details^.Count-1 ].Size := bNOP;
-
-          if ( bNOP > 1 ) then
-            StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
+          StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
           S := '';
           for i := 0 to bNOP-1 do
@@ -4707,8 +4708,14 @@ begin
             Inc( Data );
             end;
           StrL_Hex.Add( S );
-          bNOP := 0;
+          Inc( result, bNOP );
+          end
+        else if ( bNOP = 1 ) then
+          begin
+          StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
+          Inc( Data );
           end;
+        bNOP := 0;
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
         StrL_Assembly.Add( String( tOutput ) );
@@ -4750,16 +4757,17 @@ begin
             Continue;
           end;
 
-        if ( bNOP >= 1 ) then
+        if ( bNOP > 1 ) then
           begin
           Details^.Items[ Details^.Count-1 ].Size := bNOP;
-
-          if ( bNOP > 1 ) then
-            StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
+          StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
 //          Inc( Data, bNOP-1 );
-          bNOP := 0;
+          Inc( result, bNOP );
           end;
+//        else if ( bNOP = 1 ) then
+//          Inc( Data );
+        bNOP := 0;
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
         StrL_Assembly.Add( String( tOutput ) );
@@ -4788,7 +4796,7 @@ begin
             Continue;
           end;
 
-        if ( bNOP >= 1 ) then
+        if ( bNOP > 1 ) then
           begin
           Details^.Items[ Details^.Count-1 ].Size := bNOP;
           S := '';
@@ -4798,8 +4806,14 @@ begin
             Inc( Data );
             end;
           StrL_Hex.Add( S );
-          bNOP := 0;
+          Inc( result, bNOP );
+          end
+        else if ( bNOP = 1 ) then
+          begin
+          StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
+          Inc( Data );
           end;
+        bNOP := 0;
 
         Inc( Details^.Count );
 
@@ -4834,12 +4848,15 @@ begin
             Continue;
           end;
 
-        if ( bNOP >= 1 ) then
+        if ( bNOP > 1 ) then
           begin
           Details^.Items[ Details^.Count-1 ].Size := bNOP;
 //          Inc( Data, bNOP-1 );
-          bNOP := 0;
+          Inc( result, bNOP );
           end;
+//        else if ( bNOP = 1 ) then
+//          Inc( Data );
+        bNOP := 0;
 
         Inc( Details^.Count );
 
@@ -4877,10 +4894,9 @@ begin
             Continue;
           end;
 
-        if ( bNOP >= 1 ) then
+        if ( bNOP > 1 ) then
           begin
-          if ( bNOP > 1 ) then
-            StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
+          StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
           S := '';
           for i := 0 to bNOP-1 do
@@ -4889,8 +4905,14 @@ begin
             Inc( Data );
             end;
           StrL_Hex.Add( S );
-          bNOP := 0;
+          Inc( result, bNOP );
+          end
+        else if ( bNOP = 1 ) then
+          begin
+          StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
+          Inc( Data );
           end;
+        bNOP := 0;
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
         StrL_Assembly.Add( String( tOutput ) );
@@ -4928,14 +4950,16 @@ begin
             Continue;
           end;
 
-        if ( bNOP >= 1 ) then
+        if ( bNOP > 1 ) then
           begin
-          if ( bNOP > 1 ) then
-            StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
+          StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
 //          Inc( Data, bNOP-1 );
-          bNOP := 0;
+          Inc( result, bNOP );
           end;
+//        else if ( bNOP = 1 ) then
+//          Inc( Data );
+        bNOP := 0;
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
         StrL_Assembly.Add( String( tOutput ) );
@@ -4958,7 +4982,7 @@ begin
             Continue;
           end;
 
-        if ( bNOP >= 1 ) then
+        if ( bNOP > 1 ) then
           begin
           S := '';
           for i := 0 to bNOP-1 do
@@ -4967,8 +4991,14 @@ begin
             Inc( Data );
             end;
           StrL_Hex.Add( S );
-          bNOP := 0;
+          Inc( result, bNOP );
+          end
+        else if ( bNOP = 1 ) then
+          begin
+          StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
+          Inc( Data );
           end;
+        bNOP := 0;
 
         S := '';
         for i := 0 to Instruction.len-1 do
@@ -5027,6 +5057,13 @@ begin
 
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
+          if ( bNOP = 0 ) then
+            begin
+            Formatter.Format( Instruction, tOutput, Length( tOutput ) );
+            StrL_Assembly.Add( String( tOutput ) );
+            Inc( Details^.Count );
+            end;
+
           Inc( bNOP );
           if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
@@ -5034,22 +5071,27 @@ begin
 
         if ( bNOP > 1 ) then
           begin
-          Instruction.len := bNOP;
+          Details^.Items[ Details^.Count-1 ].Size := bNOP;
+          StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
-          {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
-          Details^.Items[ Details^.Count ].Offset := Details^.Items[ Details^.Count ].Offset-bNOP+1;
-          {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
-          Details^.Items[ Details^.Count ].Size := bNOP;
-
-          StrL_Assembly.Add( 'nop:' + IntToStr( bNOP ) );
-
-          bNOP := 0;
+          S := '';
+          for i := 0 to bNOP-1 do
+            begin
+            S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
+            Inc( Data );
+            end;
+          StrL_Hex.Add( S );
+          Inc( result, bNOP );
           end
-        else
+        else if ( bNOP = 1 ) then
           begin
-          Formatter.Format( Instruction, tOutput, Length( tOutput ) );
-          StrL_Assembly.Add( String( tOutput ) );
+          StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
+          Inc( Data );
           end;
+        bNOP := 0;
+
+        Formatter.Format( Instruction, tOutput, Length( tOutput ) );
+        StrL_Assembly.Add( String( tOutput ) );
 
         Inc( Details^.Count );
 
@@ -5078,6 +5120,12 @@ begin
 
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
+          if ( bNOP = 0 ) then
+            begin
+            Formatter.Format( Instruction, tOutput, Length( tOutput ) );
+            StrL_Assembly.Add( String( tOutput ) );
+            Inc( Details^.Count );
+            end;
           Inc( bNOP );
           if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
@@ -5085,22 +5133,18 @@ begin
 
         if ( bNOP > 1 ) then
           begin
-          Instruction.len := bNOP;
+          Details^.Items[ Details^.Count-1 ].Size := bNOP;
+          StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
-          {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
-          Details^.Items[ Details^.Count ].Offset := Details^.Items[ Details^.Count ].Offset-bNOP+1;
-          {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
-          Details^.Items[ Details^.Count ].Size := bNOP;
-
-          StrL_Assembly.Add( 'nop:' + IntToStr( bNOP ) );
-
-          bNOP := 0;
-          end
-        else
-          begin
-          Formatter.Format( Instruction, tOutput, Length( tOutput ) );
-          StrL_Assembly.Add( String( tOutput ) );
+//          Inc( Data, bNOP-1 );
+          Inc( result, bNOP );
           end;
+//        else if ( bNOP = 1 ) then
+//          Inc( Data );
+        bNOP := 0;
+
+        Formatter.Format( Instruction, tOutput, Length( tOutput ) );
+        StrL_Assembly.Add( String( tOutput ) );
 
         Inc( Details^.Count );
         Inc( result, Instruction.len );
@@ -5120,6 +5164,8 @@ begin
 
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
+          if ( bNOP = 0 ) then
+            Inc( Details^.Count );
           Inc( bNOP );
           if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
@@ -5127,15 +5173,22 @@ begin
 
         if ( bNOP > 1 ) then
           begin
-          Instruction.len := bNOP;
-
-          {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
-          Details^.Items[ Details^.Count ].Offset := Details^.Items[ Details^.Count ].Offset-bNOP+1;
-          {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
-          Details^.Items[ Details^.Count ].Size := bNOP;
-
-          bNOP := 0;
+          Details^.Items[ Details^.Count-1 ].Size := bNOP;
+          S := '';
+          for i := 0 to bNOP-1 do
+            begin
+            S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
+            Inc( Data );
+            end;
+          StrL_Hex.Add( S );
+          Inc( result, bNOP );
+          end
+        else if ( bNOP = 1 ) then
+          begin
+          StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
+          Inc( Data );
           end;
+        bNOP := 0;
 
         Inc( Details^.Count );
 
@@ -5164,6 +5217,8 @@ begin
 
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
+          if ( bNOP = 0 ) then
+            Inc( Details^.Count );
           Inc( bNOP );
           if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
@@ -5171,15 +5226,13 @@ begin
 
         if ( bNOP > 1 ) then
           begin
-          Instruction.len := bNOP;
-
-          {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
-          Details^.Items[ Details^.Count ].Offset := Details^.Items[ Details^.Count ].Offset-bNOP+1;
-          {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
-          Details^.Items[ Details^.Count ].Size := bNOP;
-
-          bNOP := 0;
+          Details^.Items[ Details^.Count-1 ].Size := bNOP;
+//          Inc( Data, bNOP-1 );
+          Inc( result, bNOP );
           end;
+//        else if ( bNOP = 1 ) then
+//          Inc( Data );
+        bNOP := 0;
 
         Inc( Details^.Count );
 
@@ -5207,23 +5260,39 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
+
+          if ( bNOP = 0 ) then
+            begin
+            Formatter.Format( Instruction, tOutput, Length( tOutput ) );
+            StrL_Assembly.Add( String( tOutput ) );
+            end;
+
           if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
         if ( bNOP > 1 ) then
           begin
-          Instruction.len := bNOP;
+          StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
-          StrL_Assembly.Add( 'nop:' + IntToStr( bNOP ) );
-
-          bNOP := 0;
+          S := '';
+          for i := 0 to bNOP-1 do
+            begin
+            S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
+            Inc( Data );
+            end;
+          StrL_Hex.Add( S );
+          Inc( result, bNOP );
           end
-        else
+        else if ( bNOP = 1 ) then
           begin
-          Formatter.Format( Instruction, tOutput, Length( tOutput ) );
-          StrL_Assembly.Add( String( tOutput ) );
+          StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
+          Inc( Data );
           end;
+        bNOP := 0;
+
+        Formatter.Format( Instruction, tOutput, Length( tOutput ) );
+        StrL_Assembly.Add( String( tOutput ) );
 
         S := '';
         for i := 0 to Instruction.len-1 do
@@ -5248,23 +5317,30 @@ begin
         if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
+
+          if ( bNOP = 0 ) then
+            begin
+            Formatter.Format( Instruction, tOutput, Length( tOutput ) );
+            StrL_Assembly.Add( String( tOutput ) );
+            end;
+
           if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
             Continue;
           end;
 
         if ( bNOP > 1 ) then
           begin
-          Instruction.len := bNOP;
+          StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
-          StrL_Assembly.Add( 'nop:' + IntToStr( bNOP ) );
-
-          bNOP := 0;
-          end
-        else
-          begin
-          Formatter.Format( Instruction, tOutput, Length( tOutput ) );
-          StrL_Assembly.Add( String( tOutput ) );
+//          Inc( Data, bNOP-1 );
+          Inc( result, bNOP );
           end;
+//        else if ( bNOP = 1 ) then
+//          Inc( Data );
+        bNOP := 0;
+
+        Formatter.Format( Instruction, tOutput, Length( tOutput ) );
+        StrL_Assembly.Add( String( tOutput ) );
 
         Inc( result, Instruction.len );
         end;
@@ -5287,10 +5363,21 @@ begin
 
         if ( bNOP > 1 ) then
           begin
-          Instruction.len := bNOP;
-
-          bNOP := 0;
+          S := '';
+          for i := 0 to bNOP-1 do
+            begin
+            S := S + IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} );
+            Inc( Data );
+            end;
+          StrL_Hex.Add( S );
+          Inc( result, bNOP );
+          end
+        else if ( bNOP = 1 ) then
+          begin
+          StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
+          Inc( Data );
           end;
+        bNOP := 0;
 
         S := '';
         for i := 0 to Instruction.len-1 do
@@ -5395,7 +5482,7 @@ end;
 function TIced.PointerScan( Code : PByte; Size : Cardinal; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
 const
   BLOCK_SIZE   = 100000;
-  UPDATE_PERCENT = 0.02;
+  UPDATE_PERCENT = 0.01;
 var
   Instruction : TInstruction;
   Offsets     : TConstantOffsets;
@@ -5489,7 +5576,7 @@ begin
         else if ( Disp < 0 ) then
           Dec( Off, Abs( Disp ) );
 
-        if ( ABS( Instruction.next_rip-Off ) >= $10000 ) then
+        if ( ABS( Instruction.next_rip-Off ) >= MASKING_OFFSET ) then
           begin
           // Filter duplicates
           b := false;

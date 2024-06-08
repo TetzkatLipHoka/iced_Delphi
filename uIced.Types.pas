@@ -51896,8 +51896,13 @@ type
   end;
 
   TUsedRegister = record
-    register_ : TRegister;
+    {$IFDEF ICED_1210}
     access    : TOpAccess;
+    {$ENDIF ICED_1210}
+    register_ : TRegister;
+    {$IFNDEF ICED_1210}
+    access    : TOpAccess;
+    {$ENDIF ICED_1210}
   end;
 
 const
