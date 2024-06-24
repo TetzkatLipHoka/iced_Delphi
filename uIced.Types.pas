@@ -51312,6 +51312,7 @@ type
     function IF_ : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function AC : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function UIF : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
+    function AsString : String; {$IF CompilerVersion >= 23}inline;{$IFEND}
   end;
 
   TRFlags = {$IFDEF UNICODE}packed record{$ELSE}object{$ENDIF}
@@ -51321,7 +51322,6 @@ type
     Set_      : TRFlag{Cardinal};
     Undefined : TRFlag{Cardinal};
     Modified  : TRFlag{Cardinal};
-
     function  ReadAsString : String; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  WrittenAsString : String; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  ClearedAsString : String; {$IF CompilerVersion >= 23}inline;{$IFEND}
@@ -51386,7 +51386,8 @@ type
     function  IsRet : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  IsFloat : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  IsFloat64 : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
-    function  IsEqual( var Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
+    function  IsEqual( var Instruction : TInstruction; IgnoreRIP : Boolean = True ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
+    function  IsSimiliar( var Instruction : TInstruction; MaxDisplacement : Cardinal = 0 ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
 
     function  FPU_StackIncrementInfo : TFpuStackIncrementInfo; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  Encoding : TEncodingKind; {$IF CompilerVersion >= 23}inline;{$IFEND}
@@ -51677,6 +51678,7 @@ type
     constructor With_Declare_QWord( Q0 : UInt64 ); overload;
     constructor With_Declare_QWord( Q0 : UInt64; Q1 : UInt64 ); overload;
   end;
+  PInstruction = ^TInstruction;
   TInstructionArray = Array of TInstruction;
 
   TConstantOffsets = {$IFDEF UNICODE}record{$ELSE}object{$ENDIF}
@@ -52004,9 +52006,318 @@ type
     rpkRepne = 2
   );
 
+  // Options that control if the memory size ( eg. `DWORD PTR` ) is shown or not.
+  // This is ignored by the gas ( AT&T ) formatter.
+  //
+  // - Default: [`Default`]
+  //
+  // [`Default`]: enum.MemorySizeOptions.html#variant.Default
+  TMemorySizeOptions = (
+    // Show memory size if the assembler requires it, else don't show anything
+    msoDefault = 0,
+    // Always show the memory size, even if the assembler doesn't need it
+    msoAlways = 1,
+    // Show memory size if a human can't figure out the size of the operand
+    msoMinimal = 2,
+    // Never show memory size
+    msoNever = 3
+  );
+
+  // Mnemonic condition code selector ( eg. `JB` / `JC` / `JNAE` )
+  //
+  // Default: `JB`, `CMOVB`, `SETB`
+  TCC_b = (
+    // `JB`, `CMOVB`, `SETB`
+    b = 0,
+    // `JC`, `CMOVC`, `SETC`
+    c = 1,
+    // `JNAE`, `CMOVNAE`, `SETNAE`
+    nae = 2
+  );
+
+  // Mnemonic condition code selector ( eg. `JAE` / `JNB` / `JNC` )
+  //
+  // Default: `JAE`, `CMOVAE`, `SETAE`
+  TCC_ae = (
+    // `JAE`, `CMOVAE`, `SETAE`
+    ae = 0,
+    // `JNB`, `CMOVNB`, `SETNB`
+    nb = 1,
+    // `JNC`, `CMOVNC`, `SETNC`
+    nc = 2
+  );
+
+  // Mnemonic condition code selector ( eg. `JE` / `JZ` )
+  //
+  // Default: `JE`, `CMOVE`, `SETE`, `LOOPE`, `REPE`
+  TCC_e = (
+    // `JE`, `CMOVE`, `SETE`, `LOOPE`, `REPE`
+    e = 0,
+    // `JZ`, `CMOVZ`, `SETZ`, `LOOPZ`, `REPZ`
+    z = 1
+  );
+
+  // Mnemonic condition code selector ( eg. `JNE` / `JNZ` )
+  //
+  // Default: `JNE`, `CMOVNE`, `SETNE`, `LOOPNE`, `REPNE`
+  TCC_ne = (
+    // `JNE`, `CMOVNE`, `SETNE`, `LOOPNE`, `REPNE`
+    ne = 0,
+    // `JNZ`, `CMOVNZ`, `SETNZ`, `LOOPNZ`, `REPNZ`
+    nz = 1
+  );
+
+  // Mnemonic condition code selector ( eg. `JBE` / `JNA` )
+  //
+  // Default: `JBE`, `CMOVBE`, `SETBE`
+  TCC_be = (
+    // `JBE`, `CMOVBE`, `SETBE`
+    be = 0,
+    // `JNA`, `CMOVNA`, `SETNA`
+    na = 1
+  );
+
+  // Mnemonic condition code selector ( eg. `JA` / `JNBE` )
+  //
+  // Default: `JA`, `CMOVA`, `SETA`
+  TCC_a = (
+    // `JA`, `CMOVA`, `SETA`
+    a = 0,
+    // `JNBE`, `CMOVNBE`, `SETNBE`
+    nbe = 1
+  );
+
+  // Mnemonic condition code selector ( eg. `JP` / `JPE` )
+  //
+  // Default: `JP`, `CMOVP`, `SETP`
+  TCC_p = (
+    // `JP`, `CMOVP`, `SETP`
+    p = 0,
+    // `JPE`, `CMOVPE`, `SETPE`
+    pe = 1
+  );
+
+  // Mnemonic condition code selector ( eg. `JNP` / `JPO` )
+  //
+  // Default: `JNP`, `CMOVNP`, `SETNP`
+  TCC_np = (
+    // `JNP`, `CMOVNP`, `SETNP`
+    np = 0,
+    // `JPO`, `CMOVPO`, `SETPO`
+    po = 1
+  );
+
+  // Mnemonic condition code selector ( eg. `JL` / `JNGE` )
+  //
+  // Default: `JL`, `CMOVL`, `SETL`
+  TCC_l = (
+    // `JL`, `CMOVL`, `SETL`
+    l = 0,
+    // `JNGE`, `CMOVNGE`, `SETNGE`
+    nge = 1
+  );
+
+  // Mnemonic condition code selector ( eg. `JGE` / `JNL` )
+  //
+  // Default: `JGE`, `CMOVGE`, `SETGE`
+  TCC_ge = (
+    // `JGE`, `CMOVGE`, `SETGE`
+    ge = 0,
+    // `JNL`, `CMOVNL`, `SETNL`
+    nl = 1
+  );
+
+  // Mnemonic condition code selector ( eg. `JLE` / `JNG` )
+  //
+  // Default: `JLE`, `CMOVLE`, `SETLE`
+  TCC_le = (
+    // `JLE`, `CMOVLE`, `SETLE`
+    le = 0,
+    // `JNG`, `CMOVNG`, `SETNG`
+    ng = 1
+  );
+
+  // Mnemonic condition code selector ( eg. `JG` / `JNLE` )
+  //
+  // Default: `JG`, `CMOVG`, `SETG`
+  TCC_g = (
+    // `JG`, `CMOVG`, `SETG`
+    g = 0,
+    // `JNLE`, `CMOVNLE`, `SETNLE`
+    nle = 1
+  );
+
   TSymbolResolverCallback = function( var Instruction: TInstruction; Operand: Cardinal; InstructionOperand : Cardinal; Address: UInt64; Size: Cardinal; UserData : Pointer = nil ) : PAnsiChar; cdecl;
   TFormatterOptionsProviderCallback = procedure( var Instruction: TInstruction; Operand: Cardinal; InstructionOperand : Cardinal; var Options: TFormatterOperandOptions; var NumberOptions: TNumberFormattingOptions; UserData : Pointer = nil ); cdecl;
   TFormatterOutputCallback = procedure( Text : PAnsiChar; Kind : TFormatterTextKind; UserData : Pointer = nil );
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+function MemoryOperand_New( Base: TRegister; Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister ) : TMemoryOperand; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function MemoryOperand_With_Base_Index_Scale_Bcst_Seg( Base: TRegister; Index: TRegister; Scale: Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister ) : TMemoryOperand; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function MemoryOperand_With_Base_Displ_Size_Bcst_Seg( Base: TRegister; Displacement: Int64; DisplSize : Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister ) : TMemoryOperand; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function MemoryOperand_With_Index_Scale_Displ_Size_Bcst_Seg( Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister ) : TMemoryOperand; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function MemoryOperand_With_Base_Displ_Bcst_Seg( Base: TRegister; Displacement: Int64; IsBroadcast : Boolean; SegmentPrefix : TRegister ) : TMemoryOperand; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function MemoryOperand_With_Base_Index_Scale_DisplSize( Base: TRegister; Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal ) : TMemoryOperand; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function MemoryOperand_With_Base_Index_Scale( Base: TRegister; Index: TRegister; Scale: Cardinal ) : TMemoryOperand; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function MemoryOperand_With_Base_Index( Base: TRegister; Index: TRegister ) : TMemoryOperand; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function MemoryOperand_With_Base_Displ_Size( Base: TRegister; Displacement: Int64; DisplSize : Cardinal ) : TMemoryOperand; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function MemoryOperand_With_Index_Scale_Displ_Size( Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal ) : TMemoryOperand; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function MemoryOperand_With_Base_Displ( Base: TRegister; Displacement: Int64 ) : TMemoryOperand; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function MemoryOperand_With_Base( Base: TRegister ) : TMemoryOperand; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function MemoryOperand_With_Displ( Displacement: Int64; DisplSize : Cardinal ) : TMemoryOperand; {$IF CompilerVersion >= 23}inline;{$IFEND}
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Instruction 'WITH'
+// Creates an instruction with no operands
+function Instruction_With_( Code : TCode ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+
+// Creates an instruction with 1 operand
+//
+// # Errors
+// Fails if one of the operands is invalid (basic checks)
+function Instruction_With1( Code : TCode; Register_ : TRegister ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With1( Code : TCode; Immediate : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With1( Code : TCode; Immediate : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With1( Code : TCode; Memory : TMemoryOperand ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With2( Code : TCode; Register1 : TRegister; Register2 : TRegister ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With2( Code : TCode; Register_ : TRegister; Immediate : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With2( Code : TCode; Register_ : TRegister; Immediate : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With2( Code : TCode; Register_ : TRegister; Immediate : Int64 ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With2( Code : TCode; Register_ : TRegister; Immediate : UInt64 ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With2( Code : TCode; Register_ : TRegister; Memory : TMemoryOperand ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With2( Code : TCode; Immediate : Integer; Register_ : TRegister ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With2( Code : TCode; Immediate : Cardinal; Register_ : TRegister ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With2( Code : TCode; Immediate1 : Integer; Immediate2 : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With2( Code : TCode; Immediate1 : Cardinal; Immediate2 : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With2( Code : TCode; Memory : TMemoryOperand; Register_ : TRegister ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With2( Code : TCode; Memory : TMemoryOperand; Immediate : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With2( Code : TCode; Memory : TMemoryOperand; Immediate : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With3( Code : TCode; Register_ : TRegister; Immediate1 : Integer; Immediate2 : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With3( Code : TCode; Register_ : TRegister; Immediate1 : Cardinal; Immediate2 : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With3( Code : TCode; Register1 : TRegister; Memory : TMemoryOperand; Register2 : TRegister ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With3( Code : TCode; Register1 : TRegister; Memory : TMemoryOperand; Immediate : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With3( Code : TCode; Register_ : TRegister; Memory : TMemoryOperand; Immediate : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With3( Code : TCode; Memory : TMemoryOperand; Register1 : TRegister; Register2 : TRegister ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With3( Code : TCode; Memory : TMemoryOperand; Register_ : TRegister; Immediate : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With3( Code : TCode; Memory : TMemoryOperand; Register_ : TRegister; Immediate : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Register4 : TRegister ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Immediate : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Immediate : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Memory : TMemoryOperand ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate1 : Integer; Immediate2 : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate1 : Cardinal; Immediate2 : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Register3 : TRegister ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Immediate : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Immediate : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Register4 : TRegister; Immediate : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Register4 : TRegister; Immediate : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Memory : TMemoryOperand; Immediate : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Memory : TMemoryOperand; Immediate : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Register3 : TRegister; Immediate : Integer ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Register3 : TRegister; Immediate : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Branch_( Code : TCode; Target : UInt64 ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Far_Branch_( Code : TCode; Selector : Word; Offset : Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_xbegin_( Bitness : Cardinal; Target : UInt64 ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_outsb_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_outsb_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_outsw_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_outsw_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_outsd_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_outsd_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_lodsb_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_lodsb_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_lodsw_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_lodsw_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_lodsd_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_lodsd_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_lodsq_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_lodsq_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_scasb_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repe_scasb_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repne_scasb_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_scasw_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repe_scasw_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repne_scasw_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_scasd_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repe_scasd_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repne_scasd_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_scasq_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repe_scasq_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repne_scasq_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_insb_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_insb_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_insw_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_insw_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_insd_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_insd_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_stosb_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_stosb_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_stosw_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_stosw_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_stosd_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_stosd_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_stosq_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_cmpsb_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repe_cmpsb_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repne_cmpsb_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_cmpsw_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repe_cmpsw_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repne_cmpsw_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_cmpsd_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repe_cmpsd_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repne_cmpsd_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_cmpsq_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repe_cmpsq_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Repne_cmpsq_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_movsb_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_movsb_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_movsw_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_movsw_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_movsd_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_movsd_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_movsq_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Rep_movsq_( AddressSize: Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_maskmovq_( AddressSize: Cardinal; Register1 : TRegister; Register2 : TRegister; SegmentPrefix : Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_maskmovdqu_( AddressSize: Cardinal; Register1 : TRegister; Register2 : TRegister; SegmentPrefix : Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_vmaskmovdqu_( AddressSize: Cardinal; Register1 : TRegister; Register2 : TRegister; SegmentPrefix : Cardinal ) : TInstruction; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( Bytes : Array of Byte ) : TInstruction; overload;
+function Instruction_With_Declare_Byte_( B0 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte; B10 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte; B10 : Byte; B11 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte; B10 : Byte; B11 : Byte; B12 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte; B10 : Byte; B11 : Byte; B12 : Byte; B13 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte; B10 : Byte; B11 : Byte; B12 : Byte; B13 : Byte; B14 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte; B10 : Byte; B11 : Byte; B12 : Byte; B13 : Byte; B14 : Byte; B15 : Byte ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Word_( Words : Array of Word ) : TInstruction; overload;
+function Instruction_With_Declare_Word_( W0 : Word ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word; W2 : Word ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word; W2 : Word; W3 : Word ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word; W2 : Word; W3 : Word; W4 : Word ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word; W2 : Word; W3 : Word; W4 : Word; W5 : Word ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word; W2 : Word; W3 : Word; W4 : Word; W5 : Word; W6 : Word ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word; W2 : Word; W3 : Word; W4 : Word; W5 : Word; W6 : Word; W7 : Word ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_DWord_( DWords : Array of Cardinal ) : TInstruction; overload;
+function Instruction_With_Declare_DWord_( D0 : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_DWord_( D0 : Cardinal; D1 : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_DWord_( D0 : Cardinal; D1 : Cardinal; D2 : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_DWord_( D0 : Cardinal; D1 : Cardinal; D2 : Cardinal; D3 : Cardinal ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_QWord_( QWords : Array of UInt64 ) : TInstruction; overload;
+function Instruction_With_Declare_QWord_( Q0 : UInt64 ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+function Instruction_With_Declare_QWord_( Q0 : UInt64; Q1 : UInt64 ) : TInstruction; overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 implementation
@@ -52071,11 +52382,42 @@ begin
   result := ( ( Value AND rfUIF ) <> 0 );
 end;
 
+function TRFlag.AsString : String;
+begin
+  result := '';
+
+  if ( ( Value AND rfOF ) <> 0 ) then
+    result := result + ', OF';
+  if ( ( Value AND rfSF ) <> 0 ) then
+    result := result + ', SF';
+  if ( ( Value AND rfZF ) <> 0 ) then
+    result := result + ', ZF';
+  if ( ( Value AND rfAF ) <> 0 ) then
+    result := result + ', AF';
+  if ( ( Value AND rfCF ) <> 0 ) then
+    result := result + ', CF';
+  if ( ( Value AND rfPF ) <> 0 ) then
+    result := result + ', PF';
+  if ( ( Value AND rfDF ) <> 0 ) then
+    result := result + ', DF';
+  if ( ( Value AND rfIF ) <> 0 ) then
+    result := result + ', IF';
+  if ( ( Value AND rfAC ) <> 0 ) then
+    result := result + ', AC';
+  if ( ( Value AND rfUIF ) <> 0 ) then
+    result := result + ', UIF';
+
+  if ( Result <> '' ) then
+    result := Copy( Result, 3, Length( result )-2 )
+  else
+    result := '---';
+end;
+
 // RFlags (Record)
 function TRFlags.ReadAsString : String;
 begin
   if ( Read.Value <> rfNONE ) then
-    result := ParseRFlags( Read.Value )
+    result := Read.AsString
   else
     result := '';
 end;
@@ -52083,7 +52425,7 @@ end;
 function TRFlags.WrittenAsString : String;
 begin
   if ( Written.Value <> rfNONE ) then
-    result := ParseRFlags( Written.Value )
+    result := Written.AsString
   else
     result := '';
 end;
@@ -52091,7 +52433,7 @@ end;
 function TRFlags.ClearedAsString : String;
 begin
   if ( Cleared.Value <> rfNONE ) then
-    result := ParseRFlags( Cleared.Value )
+    result := Cleared.AsString
   else
     result := '';
 end;
@@ -52099,7 +52441,7 @@ end;
 function TRFlags.SetAsString : String;
 begin
   if ( Set_.Value <> rfNONE ) then
-    result := ParseRFlags( Set_.Value )
+    result := Set_.AsString
   else
     result := '';
 end;
@@ -52107,7 +52449,7 @@ end;
 function TRFlags.UndefinedAsString : String;
 begin
   if ( Undefined.Value <> rfNONE ) then
-    result := ParseRFlags( Undefined.Value )
+    result := Undefined.AsString
   else
     result := '';
 end;
@@ -52115,7 +52457,7 @@ end;
 function TRFlags.ModifiedAsString : String;
 begin
   if ( Modified.Value <> rfNONE ) then
-    result := ParseRFlags( Modified.Value )
+    result := Modified.AsString
   else
     result := '';
 end;
@@ -52210,20 +52552,60 @@ begin
             ( Code = Retnw ) OR ( Code = Retnd ) OR ( Code = Retnq );
 end;
 
-function TInstruction.IsEqual( var Instruction : TInstruction ) : Boolean;
+function TInstruction.IsEqual( var Instruction : TInstruction; IgnoreRIP : Boolean = True ) : Boolean;
 begin
-  result := // ( next_rip      = Instruction.next_rip ) AND
+  result := ( IgnoreRIP OR ( NOT IgnoreRIP AND ( next_rip = Instruction.next_rip ) ) ) AND
             ( mem_displ     = Instruction.mem_displ ) AND
             ( flags1        = Instruction.flags1 ) AND
             ( immediate     = Instruction.immediate ) AND
-            ( code          = Instruction.code ) AND
-            ( mem_base_reg  = Instruction.mem_base_reg ) AND
+//            ( code          = Instruction.code ) AND
+
+            ( ( ( code          = Instruction.code ) AND
+                ( mem_base_reg  = Instruction.mem_base_reg ) ) OR
+
+            // Keystone compensation (mov rax, [] to movabs rax, [])
+              // mov [ ], rax
+              ( ( Regs[ 1 ] = RAX ) AND
+              ( ( ( mem_base_reg = TRegister.RIP ) AND ( Instruction.mem_base_reg = None ) AND ( code = Mov_rm64_r64 ) AND ( Instruction.code = Mov_moffs64_RAX ) ) OR
+                ( ( mem_base_reg = None ) AND ( Instruction.mem_base_reg = TRegister.RIP ) AND ( code = Mov_moffs64_RAX ) AND ( Instruction.code = Mov_rm64_r64 ) ) ) ) OR
+
+              ( ( Regs[ 1 ] = EAX ) AND
+              ( ( ( mem_base_reg = TRegister.RIP ) AND ( Instruction.mem_base_reg = None ) AND ( code = Mov_rm32_r32 ) AND ( Instruction.code = Mov_moffs32_EAX ) ) OR
+                ( ( mem_base_reg = None ) AND ( Instruction.mem_base_reg = TRegister.RIP ) AND ( code = Mov_moffs32_EAX ) AND ( Instruction.code = Mov_rm32_r32 ) ) ) ) OR
+
+              ( ( Regs[ 1 ] = AX ) AND
+              ( ( ( mem_base_reg = TRegister.RIP ) AND ( Instruction.mem_base_reg = None ) AND ( code = Mov_rm16_r16 ) AND ( Instruction.code = Mov_moffs16_AX ) ) OR
+                ( ( mem_base_reg = None ) AND ( Instruction.mem_base_reg = TRegister.RIP ) AND ( code = Mov_moffs16_AX ) AND ( Instruction.code = Mov_rm16_r16 ) ) ) ) OR
+
+              ( ( Regs[ 1 ] = AL ) AND
+              ( ( ( mem_base_reg = TRegister.RIP ) AND ( Instruction.mem_base_reg = None ) AND ( code = Mov_rm8_r8 ) AND ( Instruction.code = Mov_moffs8_AL ) ) OR
+                ( ( mem_base_reg = None ) AND ( Instruction.mem_base_reg = TRegister.RIP ) AND ( code = Mov_moffs8_AL ) AND ( Instruction.code = Mov_rm8_r8 ) ) ) ) OR
+
+              // mov rax, [ ]
+              ( ( Regs[ 0 ] = RAX ) AND
+              ( ( ( mem_base_reg = None ) AND ( Instruction.mem_base_reg = TRegister.RIP ) AND ( code = Mov_r64_rm64 ) AND ( Instruction.code = Mov_RAX_moffs64 ) ) OR
+                ( ( mem_base_reg = TRegister.RIP ) AND ( Instruction.mem_base_reg = None ) AND ( code = Mov_RAX_moffs64 ) AND ( Instruction.code = Mov_r64_rm64 ) ) ) ) OR
+
+              ( ( Regs[ 0 ] = EAX ) AND
+              ( ( ( mem_base_reg = None ) AND ( Instruction.mem_base_reg = TRegister.RIP ) AND ( code = Mov_r32_rm32 ) AND ( Instruction.code = Mov_EAX_moffs32 ) ) OR
+                ( ( mem_base_reg = TRegister.RIP ) AND ( Instruction.mem_base_reg = None ) AND ( code = Mov_EAX_moffs32 ) AND ( Instruction.code = Mov_r32_rm32 ) ) ) ) OR
+
+              ( ( Regs[ 0 ] = AX ) AND
+              ( ( ( mem_base_reg = None ) AND ( Instruction.mem_base_reg = TRegister.RIP ) AND ( code = Mov_r16_rm16 ) AND ( Instruction.code = Mov_AX_moffs16 ) ) OR
+                ( ( mem_base_reg = TRegister.RIP ) AND ( Instruction.mem_base_reg = None ) AND ( code = Mov_AX_moffs16 ) AND ( Instruction.code = Mov_r16_rm16 ) ) ) ) OR
+
+              ( ( Regs[ 0 ] = AL ) AND
+              ( ( ( mem_base_reg = None ) AND ( Instruction.mem_base_reg = TRegister.RIP ) AND ( code = Mov_r8_rm8 ) AND ( Instruction.code = Mov_AL_moffs8 ) ) OR
+                ( ( mem_base_reg = TRegister.RIP ) AND ( Instruction.mem_base_reg = None ) AND ( code = Mov_AL_moffs8 ) AND ( Instruction.code = Mov_r8_rm8 ) ) ) )
+            ) AND
+
+//            ( mem_base_reg  = Instruction.mem_base_reg ) AND
             ( mem_index_reg = Instruction.mem_index_reg ) AND
 
-            ( regs[ 0 ] = Instruction.regs[ 0 ] ) AND
-            ( regs[ 1 ] = Instruction.regs[ 1 ] ) AND
-            ( regs[ 2 ] = Instruction.regs[ 2 ] ) AND
-            ( regs[ 3 ] = Instruction.regs[ 3 ] ) AND
+            ( regs[ 0 ]     = Instruction.regs[ 0 ] ) AND
+            ( regs[ 1 ]     = Instruction.regs[ 1 ] ) AND
+            ( regs[ 2 ]     = Instruction.regs[ 2 ] ) AND
+            ( regs[ 3 ]     = Instruction.regs[ 3 ] ) AND
 
             ( op_kinds[ 0 ] = Instruction.op_kinds[ 0 ] ) AND
             ( op_kinds[ 1 ] = Instruction.op_kinds[ 1 ] ) AND
@@ -52233,6 +52615,102 @@ begin
             ( scale         = Instruction.scale ) AND
             ( displ_size    = Instruction.displ_size ) AND
             ( len           = Instruction.len ) AND
+            ( pad           = Instruction.pad );
+end;
+
+function TInstruction.IsSimiliar( var Instruction : TInstruction; MaxDisplacement : Cardinal = 0 ) : Boolean;
+const
+  MAX_DISPLACEMENT = $1000;
+var
+  Cnt1,
+  Cnt2 : Byte;
+  i    : Integer;
+  Dev  : UInt64;
+begin
+  Cnt1 := 0;
+  Cnt2 := 0;
+  for i := Low( regs ) to High( regs ) do
+    begin
+    if ( Regs[ i ] = None ) then
+      Inc( Cnt1 );
+    if ( Instruction.Regs[ i ] = None ) then
+      Inc( Cnt2 );
+    end;
+
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  if ( MaxDisplacement > 0 ) then
+    begin
+    if ( mem_displ > Instruction.mem_displ ) then
+      Dev := mem_displ - Instruction.mem_displ
+    else if ( mem_displ < Instruction.mem_displ ) then
+      Dev := Instruction.mem_displ - mem_displ
+    else //if ( mem_displ = Instruction.mem_displ ) then
+      Dev := 0;
+    end
+  else
+    Dev := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+
+  result := //( next_rip      = Instruction.next_rip ) AND
+//            ( mem_displ     = Instruction.mem_displ ) AND
+            ( Dev           <= MaxDisplacement ) AND
+            ( flags1        = Instruction.flags1 ) AND
+            ( immediate     = Instruction.immediate ) AND
+//            ( code          = Instruction.code ) AND
+            ( ( code          = Instruction.code ) OR
+            // Keystone compensation (mov rax, [] to movabs rax, [])
+              // mov [ ], rax
+              ( ( Regs[ 1 ] = RAX ) AND
+              ( ( ( code = Mov_rm64_r64 ) AND ( Instruction.code = Mov_moffs64_RAX ) ) OR
+                ( ( code = Mov_moffs64_RAX ) AND ( Instruction.code = Mov_rm64_r64 ) ) ) ) OR
+
+              ( ( Regs[ 1 ] = EAX ) AND
+              ( ( ( code = Mov_rm32_r32 ) AND ( Instruction.code = Mov_moffs32_EAX ) ) OR
+                ( ( code = Mov_moffs32_EAX ) AND ( Instruction.code = Mov_rm32_r32 ) ) ) ) OR
+
+              ( ( Regs[ 1 ] = AX ) AND
+              ( ( ( code = Mov_rm16_r16 ) AND ( Instruction.code = Mov_moffs16_AX ) ) OR
+                ( ( code = Mov_moffs16_AX ) AND ( Instruction.code = Mov_rm16_r16 ) ) ) ) OR
+
+              ( ( Regs[ 1 ] = AL ) AND
+              ( ( ( code = Mov_rm8_r8 ) AND ( Instruction.code = Mov_moffs8_AL ) ) OR
+                ( ( code = Mov_moffs8_AL ) AND ( Instruction.code = Mov_rm8_r8 ) ) ) ) OR
+
+              // mov rax, [ ]
+              ( ( Regs[ 0 ] = RAX ) AND
+              ( ( ( code = Mov_r64_rm64 ) AND ( Instruction.code = Mov_RAX_moffs64 ) ) OR
+                ( ( code = Mov_RAX_moffs64 ) AND ( Instruction.code = Mov_r64_rm64 ) ) ) ) OR
+
+              ( ( Regs[ 0 ] = EAX ) AND
+              ( ( ( code = Mov_r32_rm32 ) AND ( Instruction.code = Mov_EAX_moffs32 ) ) OR
+                ( ( code = Mov_EAX_moffs32 ) AND ( Instruction.code = Mov_r32_rm32 ) ) ) ) OR
+
+              ( ( Regs[ 0 ] = AX ) AND
+              ( ( ( code = Mov_r16_rm16 ) AND ( Instruction.code = Mov_AX_moffs16 ) ) OR
+                ( ( code = Mov_AX_moffs16 ) AND ( Instruction.code = Mov_r16_rm16 ) ) ) ) OR
+
+              ( ( Regs[ 0 ] = AL ) AND
+              ( ( ( code = Mov_r8_rm8 ) AND ( Instruction.code = Mov_AL_moffs8 ) ) OR
+                ( ( code = Mov_AL_moffs8 ) AND ( Instruction.code = Mov_r8_rm8 ) ) ) )
+            ) AND
+
+//            ( mem_base_reg  = Instruction.mem_base_reg ) AND
+//            ( mem_index_reg = Instruction.mem_index_reg ) AND
+
+//            ( regs[ 0 ] = Instruction.regs[ 0 ] ) AND
+//            ( regs[ 1 ] = Instruction.regs[ 1 ] ) AND
+//            ( regs[ 2 ] = Instruction.regs[ 2 ] ) AND
+//            ( regs[ 3 ] = Instruction.regs[ 3 ] ) AND
+            ( Cnt1 = Cnt2 ) AND
+
+            ( op_kinds[ 0 ] = Instruction.op_kinds[ 0 ] ) AND
+            ( op_kinds[ 1 ] = Instruction.op_kinds[ 1 ] ) AND
+            ( op_kinds[ 2 ] = Instruction.op_kinds[ 2 ] ) AND
+            ( op_kinds[ 3 ] = Instruction.op_kinds[ 3 ] ) AND
+
+            ( scale         = Instruction.scale ) AND
+            ( displ_size    = Instruction.displ_size ) AND
+//            ( len           = Instruction.len ) AND
             ( pad           = Instruction.pad );
 end;
 
@@ -53854,6 +54332,214 @@ begin
 end;
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// MemoryOperand
+// # Arguments
+// * `base`: Base register or [`Register::None`]
+// * `index`: Index register or [`Register::None`]
+// * `scale`: Index register scale (1, 2, 4, or 8)
+// * `displacement`: Memory displacement
+// * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
+// * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
+// * `segment_prefix`: Segment override or [`Register::None`]
+function MemoryOperand_New( Base: TRegister; Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister ) : TMemoryOperand;
+begin
+  result.Base           := Base;
+  result.Index          := Index;
+  result.Scale          := Scale;
+  result.Displacement   := Displacement;
+  result.displ_size     := DisplSize;
+  result.is_broadcast   := IsBroadcast;
+  result.segment_prefix := SegmentPrefix;
+end;
+
+// # Arguments
+// * `base`: Base register or [`Register::None`]
+// * `index`: Index register or [`Register::None`]
+// * `scale`: Index register scale (1, 2, 4, or 8)
+// * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
+// * `segment_prefix`: Segment override or [`Register::None`]
+function MemoryOperand_With_Base_Index_Scale_Bcst_Seg( Base: TRegister; Index: TRegister; Scale: Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister ) : TMemoryOperand;
+begin
+  result.Base           := Base;
+  result.Index          := Index;
+  result.Scale          := Scale;
+  result.Displacement   := 0;
+  result.displ_size     := 0;
+  result.is_broadcast   := IsBroadcast;
+  result.segment_prefix := SegmentPrefix;
+end;
+
+// # Arguments
+//
+// * `base`: Base register or [`Register::None`]
+// * `displacement`: Memory displacement
+// * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
+// * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
+// * `segment_prefix`: Segment override or [`Register::None`]
+function MemoryOperand_With_Base_Displ_Size_Bcst_Seg( Base: TRegister; Displacement: Int64; DisplSize : Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister ) : TMemoryOperand;
+begin
+  result.Base           := Base;
+  result.Index          := None;
+  result.Scale          := 1;
+  result.Displacement   := Displacement;
+  result.displ_size     := DisplSize;
+  result.is_broadcast   := IsBroadcast;
+  result.segment_prefix := SegmentPrefix;
+end;
+
+// # Arguments
+// * `index`: Index register or [`Register::None`]
+// * `scale`: Index register scale (1, 2, 4, or 8)
+// * `displacement`: Memory displacement
+// * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
+// * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
+// * `segment_prefix`: Segment override or [`Register::None`]
+function MemoryOperand_With_Index_Scale_Displ_Size_Bcst_Seg( Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal; IsBroadcast : Boolean; SegmentPrefix : TRegister ) : TMemoryOperand;
+begin
+  result.Base           := None;
+  result.Index          := Index;
+  result.Scale          := Scale;
+  result.Displacement   := Displacement;
+  result.displ_size     := DisplSize;
+  result.is_broadcast   := IsBroadcast;
+  result.segment_prefix := SegmentPrefix;
+end;
+
+// # Arguments
+// * `base`: Base register or [`Register::None`]
+// * `displacement`: Memory displacement
+// * `is_broadcast`: `true` if it's broadcast memory (EVEX instructions)
+// * `segment_prefix`: Segment override or [`Register::None`]
+function MemoryOperand_With_Base_Displ_Bcst_Seg( Base: TRegister; Displacement: Int64; IsBroadcast : Boolean; SegmentPrefix : TRegister ) : TMemoryOperand;
+begin
+  result.Base           := Base;
+  result.Index          := None;
+  result.Scale          := 1;
+  result.Displacement   := Displacement;
+  result.displ_size     := 1;
+  result.is_broadcast   := IsBroadcast;
+  result.segment_prefix := SegmentPrefix;
+end;
+
+// # Arguments
+// * `base`: Base register or [`Register::None`]
+// * `index`: Index register or [`Register::None`]
+// * `scale`: Index register scale (1, 2, 4, or 8)
+// * `displacement`: Memory displacement
+// * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
+function MemoryOperand_With_Base_Index_Scale_DisplSize( Base: TRegister; Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal ) : TMemoryOperand;
+begin
+  result.Base           := Base;
+  result.Index          := Index;
+  result.Scale          := Scale;
+  result.Displacement   := Displacement;
+  result.displ_size     := DisplSize;
+  result.is_broadcast   := False;
+  result.segment_prefix := None;
+end;
+
+// # Arguments
+// * `base`: Base register or [`Register::None`]
+// * `index`: Index register or [`Register::None`]
+// * `scale`: Index register scale (1, 2, 4, or 8)
+function MemoryOperand_With_Base_Index_Scale( Base: TRegister; Index: TRegister; Scale: Cardinal ) : TMemoryOperand;
+begin
+  result.Base           := Base;
+  result.Index          := Index;
+  result.Scale          := Scale;
+  result.Displacement   := 0;
+  result.displ_size     := 0;
+  result.is_broadcast   := False;
+  result.segment_prefix := None;
+end;
+
+// # Arguments
+// * `base`: Base register or [`Register::None`]
+// * `index`: Index register or [`Register::None`]
+function MemoryOperand_With_Base_Index( Base: TRegister; Index: TRegister ) : TMemoryOperand;
+begin
+  result.Base           := Base;
+  result.Index          := Index;
+  result.Scale          := 1;
+  result.Displacement   := 0;
+  result.displ_size     := 0;
+  result.is_broadcast   := False;
+  result.segment_prefix := None;
+end;
+
+// # Arguments
+// * `base`: Base register or [`Register::None`]
+// * `displacement`: Memory displacement
+// * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
+function MemoryOperand_With_Base_Displ_Size( Base: TRegister; Displacement: Int64; DisplSize : Cardinal ) : TMemoryOperand;
+begin
+  result.Base           := Base;
+  result.Index          := None;
+  result.Scale          := 1;
+  result.Displacement   := Displacement;
+  result.displ_size     := DisplSize;
+  result.is_broadcast   := False;
+  result.segment_prefix := None;
+end;
+
+// # Arguments
+// * `index`: Index register or [`Register::None`]
+// * `scale`: Index register scale (1, 2, 4, or 8)
+// * `displacement`: Memory displacement
+// * `displ_size`: 0 (no displ), 1 (16/32/64-bit, but use 2/4/8 if it doesn't fit in a `i8`), 2 (16-bit), 4 (32-bit) or 8 (64-bit)
+function MemoryOperand_With_Index_Scale_Displ_Size( Index: TRegister; Scale: Cardinal; Displacement: Int64; DisplSize : Cardinal ) : TMemoryOperand;
+begin
+  result.Base           := None;
+  result.Index          := Index;
+  result.Scale          := Scale;
+  result.Displacement   := Displacement;
+  result.displ_size     := DisplSize;
+  result.is_broadcast   := False;
+  result.segment_prefix := None;
+end;
+
+// # Arguments
+// * `base`: Base register or [`Register::None`]
+// * `displacement`: Memory displacement
+function MemoryOperand_With_Base_Displ( Base: TRegister; Displacement: Int64 ) : TMemoryOperand;
+begin
+  result.Base           := Base;
+  result.Index          := None;
+  result.Scale          := 1;
+  result.Displacement   := Displacement;
+  result.displ_size     := 1;
+  result.is_broadcast   := False;
+  result.segment_prefix := None;
+end;
+
+// # Arguments
+// * `base`: Base register or [`Register::None`]
+function MemoryOperand_With_Base( Base: TRegister ) : TMemoryOperand;
+begin
+  result.Base           := Base;
+  result.Index          := None;
+  result.Scale          := 1;
+  result.Displacement   := 0;
+  result.displ_size     := 0;
+  result.is_broadcast   := False;
+  result.segment_prefix := None;
+end;
+
+// # Arguments
+// * `displacement`: Memory displacement
+// * `displ_size`: 2 (16-bit), 4 (32-bit) or 8 (64-bit)
+function MemoryOperand_With_Displ( Displacement: Int64; DisplSize : Cardinal ) : TMemoryOperand;
+begin
+  result.Base           := None;
+  result.Index          := None;
+  result.Scale          := 1;
+  result.Displacement   := Displacement;
+  result.displ_size     := DisplSize;
+  result.is_broadcast   := False;
+  result.segment_prefix := None;
+end;
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Instruction 'WITH'
 // Creates an instruction with no operands
 constructor TInstruction.With_( ACode : TCode );
@@ -54849,5 +55535,1004 @@ begin
   if NOT Instruction_With_Declare_QWord_2( self, Q0, Q1 ) then
     FillChar( self, SizeOf( self ), 0 );
 end;
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Instruction 'WITH'
+// Creates an instruction with no operands
+function Instruction_With_( Code : TCode ) : TInstruction;
+begin
+  if NOT Instruction_With( result, Code ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+// Creates an instruction with 1 operand
+//
+// # Errors
+// Fails if one of the operands is invalid (basic checks)
+function Instruction_With1( Code : TCode; Register_ : TRegister ) : TInstruction; overload;
+begin
+  if NOT Instruction_With1_Register( result, Code, Register_ ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With1( Code : TCode; Immediate : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With1_i32( result, Code, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With1( Code : TCode; Immediate : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With1_u32( result, Code, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With1( Code : TCode; Memory : TMemoryOperand ) : TInstruction; overload;
+begin
+  if NOT Instruction_With1_Memory( result, Code, Memory ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With2( Code : TCode; Register1 : TRegister; Register2 : TRegister ) : TInstruction; overload;
+begin
+  if NOT Instruction_With2_Register_Register( result, Code, Register1, Register2 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With2( Code : TCode; Register_ : TRegister; Immediate : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With2_Register_i32( result, Code, Register_, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With2( Code : TCode; Register_ : TRegister; Immediate : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With2_Register_u32( result, Code, Register_, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With2( Code : TCode; Register_ : TRegister; Immediate : Int64 ) : TInstruction; overload;
+begin
+  if NOT Instruction_With2_Register_i64( result, Code, Register_, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With2( Code : TCode; Register_ : TRegister; Immediate : UInt64 ) : TInstruction; overload;
+begin
+  if NOT Instruction_With2_Register_u64( result, Code, Register_, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With2( Code : TCode; Register_ : TRegister; Memory : TMemoryOperand ) : TInstruction; overload;
+begin
+  if NOT Instruction_With2_Register_MemoryOperand( result, Code, Register_, Memory ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With2( Code : TCode; Immediate : Integer; Register_ : TRegister ) : TInstruction; overload;
+begin
+  if NOT Instruction_With2_i32_Register( result, Code, Immediate, Register_ ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With2( Code : TCode; Immediate : Cardinal; Register_ : TRegister ) : TInstruction; overload;
+begin
+  if NOT Instruction_With2_u32_Register( result, Code, Immediate, Register_ ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With2( Code : TCode; Immediate1 : Integer; Immediate2 : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With2_i32_i32( result, Code, Immediate1, Immediate2 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With2( Code : TCode; Immediate1 : Cardinal; Immediate2 : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With2_u32_u32( result, Code, Immediate1, Immediate2 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With2( Code : TCode; Memory : TMemoryOperand; Register_ : TRegister ) : TInstruction; overload;
+begin
+  if NOT Instruction_With2_MemoryOperand_Register( result, Code, Memory, Register_ ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With2( Code : TCode; Memory : TMemoryOperand; Immediate : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With2_MemoryOperand_i32( result, Code, Memory, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With2( Code : TCode; Memory : TMemoryOperand; Immediate : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With2_MemoryOperand_u32( result, Code, Memory, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister ) : TInstruction; overload;
+begin
+  if NOT Instruction_With3_Register_Register_Register( result, Code, Register1, Register2, Register3 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With3_Register_Register_i32( result, Code, Register1, Register2, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With3_Register_Register_u32( result, Code, Register1, Register2, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With3( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand ) : TInstruction; overload;
+begin
+  if NOT Instruction_With3_Register_Register_MemoryOperand( result, Code, Register1, Register2, Memory ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With3( Code : TCode; Register_ : TRegister; Immediate1 : Integer; Immediate2 : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With3_Register_i32_i32( result, Code, Register_, Immediate1, Immediate2 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With3( Code : TCode; Register_ : TRegister; Immediate1 : Cardinal; Immediate2 : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With3_Register_u32_u32( result, Code, Register_, Immediate1, Immediate2 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With3( Code : TCode; Register1 : TRegister; Memory : TMemoryOperand; Register2 : TRegister ) : TInstruction; overload;
+begin
+  if NOT Instruction_With3_Register_MemoryOperand_Register( result, Code, Register1, Memory, Register2 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With3( Code : TCode; Register1 : TRegister; Memory : TMemoryOperand; Immediate : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With3_Register_MemoryOperand_i32( result, Code, Register1, Memory, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With3( Code : TCode; Register_ : TRegister; Memory : TMemoryOperand; Immediate : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With3_Register_MemoryOperand_u32( result, Code, Register_, Memory, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With3( Code : TCode; Memory : TMemoryOperand; Register1 : TRegister; Register2 : TRegister ) : TInstruction; overload;
+begin
+  if NOT Instruction_With3_MemoryOperand_Register_Register( result, Code, Memory, Register1, Register2 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With3( Code : TCode; Memory : TMemoryOperand; Register_ : TRegister; Immediate : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With3_MemoryOperand_Register_i32( result, Code, Memory, Register_, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With3( Code : TCode; Memory : TMemoryOperand; Register_ : TRegister; Immediate : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With3_MemoryOperand_Register_u32( result, Code, Memory, Register_, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Register4 : TRegister ) : TInstruction; overload;
+begin
+  if NOT Instruction_With4_Register_Register_Register_Register( result, Code, Register1, Register2, Register3, Register4 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Immediate : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With4_Register_Register_Register_i32( result, Code, Register1, Register2, Register3, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Immediate : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With4_Register_Register_Register_u32( result, Code, Register1, Register2, Register3, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Memory : TMemoryOperand ) : TInstruction; overload;
+begin
+  if NOT Instruction_With4_Register_Register_Register_MemoryOperand( result, Code, Register1, Register2, Register3, Memory ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate1 : Integer; Immediate2 : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With4_Register_Register_i32_i32( result, Code, Register1, Register2, Immediate1, Immediate2 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Immediate1 : Cardinal; Immediate2 : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With4_Register_Register_u32_u32( result, Code, Register1, Register2, Immediate1, Immediate2 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Register3 : TRegister ) : TInstruction; overload;
+begin
+  if NOT Instruction_With4_Register_Register_MemoryOperand_Register( result, Code, Register1, Register2, Memory, Register3 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Immediate : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With4_Register_Register_MemoryOperand_i32( result, Code, Register1, Register2, Memory, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With4( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Immediate : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With4_Register_Register_MemoryOperand_u32( result, Code, Register1, Register2, Memory, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Register4 : TRegister; Immediate : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With5_Register_Register_Register_Register_i32( result, Code, Register1, Register2, Register3, Register4, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Register4 : TRegister; Immediate : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With5_Register_Register_Register_Register_u32( result, Code, Register1, Register2, Register3, Register4, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Memory : TMemoryOperand; Immediate : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With5_Register_Register_Register_MemoryOperand_i32( result, Code, Register1, Register2, Register3, Memory, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Register3 : TRegister; Memory : TMemoryOperand; Immediate : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With5_Register_Register_Register_MemoryOperand_u32( result, Code, Register1, Register2, Register3, Memory, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Register3 : TRegister; Immediate : Integer ) : TInstruction; overload;
+begin
+  if NOT Instruction_With5_Register_Register_MemoryOperand_Register_i32( result, Code, Register1, Register2, Memory, Register3, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With5( Code : TCode; Register1 : TRegister; Register2 : TRegister; Memory : TMemoryOperand; Register3 : TRegister; Immediate : Cardinal ) : TInstruction; overload;
+begin
+  if NOT Instruction_With5_Register_Register_MemoryOperand_Register_u32( result, Code, Register1, Register2, Memory, Register3, Immediate ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Branch_( Code : TCode; Target : UInt64 ) : TInstruction;
+begin
+  if NOT Instruction_With_Branch( result, Code, Target ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Far_Branch_( Code : TCode; Selector : Word; Offset : Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Far_Branch( result, Code, Selector, Offset ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_xbegin_( Bitness : Cardinal; Target : UInt64 ) : TInstruction;
+begin
+  if NOT Instruction_With_xbegin( result, Bitness, Target ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_outsb_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_outsb( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_outsb_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_outsb( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_outsw_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_outsw( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_outsw_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_outsw( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_outsd_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_outsd( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_outsd_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_outsd( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_lodsb_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_lodsb( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_lodsb_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_lodsb( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_lodsw_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_lodsw( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_lodsw_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_lodsw( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_lodsd_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_lodsd( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_lodsd_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_lodsd( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_lodsq_( AddressSize: Cardinal; SegmentPrefix: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_lodsq( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_lodsq_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_lodsq( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_scasb_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_scasb( result, AddressSize, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repe_scasb_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repe_scasb( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repne_scasb_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repne_scasb( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_scasw_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_scasw( result, AddressSize, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repe_scasw_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repe_scasw( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repne_scasw_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repne_scasw( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_scasd_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_scasd( result, AddressSize, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repe_scasd_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repe_scasd( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repne_scasd_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repne_scasd( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_scasq_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_scasq( result, AddressSize, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repe_scasq_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repe_scasq( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repne_scasq_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repne_scasq( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_insb_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_insb( result, AddressSize, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_insb_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_insb( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_insw_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_insw( result, AddressSize, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_insw_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_insw( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_insd_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_insd( result, AddressSize, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_insd_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_insd( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_stosb_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_stosb( result, AddressSize, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_stosb_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_stosb( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_stosw_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_stosw( result, AddressSize, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_stosw_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_stosw( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_stosd_( AddressSize: Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_stosd( result, AddressSize, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_stosd_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_stosd( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_stosq_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_stosq( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_cmpsb_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_cmpsb( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repe_cmpsb_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repe_cmpsb( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repne_cmpsb_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repne_cmpsb( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_cmpsw_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_cmpsw( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repe_cmpsw_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repe_cmpsw( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repne_cmpsw_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repne_cmpsw( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_cmpsd_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_cmpsd( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repe_cmpsd_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repe_cmpsd( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repne_cmpsd_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repne_cmpsd( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_cmpsq_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_cmpsq( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repe_cmpsq_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repe_cmpsq( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Repne_cmpsq_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Repne_cmpsq( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_movsb_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_movsb( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_movsb_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_movsb( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_movsw_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_movsw( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_movsw_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_movsw( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_movsd_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_movsd( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_movsd_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_movsd( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_movsq_( AddressSize: Cardinal; SegmentPrefix : Cardinal; RepPrefix: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_movsq( result, AddressSize, SegmentPrefix, RepPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Rep_movsq_( AddressSize: Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Rep_movsq( result, AddressSize ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_maskmovq_( AddressSize: Cardinal; Register1 : TRegister; Register2 : TRegister; SegmentPrefix : Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_maskmovq( result, AddressSize, Register1, Register2, SegmentPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_maskmovdqu_( AddressSize: Cardinal; Register1 : TRegister; Register2 : TRegister; SegmentPrefix : Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_maskmovdqu( result, AddressSize, Register1, Register2, SegmentPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_vmaskmovdqu_( AddressSize: Cardinal; Register1 : TRegister; Register2 : TRegister; SegmentPrefix : Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_vmaskmovdqu( result, AddressSize, Register1, Register2, SegmentPrefix ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( Bytes : Array of Byte ) : TInstruction;
+begin
+  case Length( Bytes ) of
+    1 : begin
+        if NOT Instruction_With_Declare_Byte_1( result, Bytes[ 0 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    2 : begin
+        if NOT Instruction_With_Declare_Byte_2( result, Bytes[ 0 ], Bytes[ 1 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    3 : begin
+        if NOT Instruction_With_Declare_Byte_3( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    4 : begin
+        if NOT Instruction_With_Declare_Byte_4( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ], Bytes[ 3 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    5 : begin
+        if NOT Instruction_With_Declare_Byte_5( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ], Bytes[ 3 ], Bytes[ 4 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    6 : begin
+        if NOT Instruction_With_Declare_Byte_6( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ], Bytes[ 3 ], Bytes[ 4 ], Bytes[ 5 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    7 : begin
+        if NOT Instruction_With_Declare_Byte_7( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ], Bytes[ 3 ], Bytes[ 4 ], Bytes[ 5 ], Bytes[ 6 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    8 : begin
+        if NOT Instruction_With_Declare_Byte_8( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ], Bytes[ 3 ], Bytes[ 4 ], Bytes[ 5 ], Bytes[ 6 ], Bytes[ 7 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    9 : begin
+        if NOT Instruction_With_Declare_Byte_9( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ], Bytes[ 3 ], Bytes[ 4 ], Bytes[ 5 ], Bytes[ 6 ], Bytes[ 7 ], Bytes[ 8 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+   10 : begin
+        if NOT Instruction_With_Declare_Byte_10( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ], Bytes[ 3 ], Bytes[ 4 ], Bytes[ 5 ], Bytes[ 6 ], Bytes[ 7 ], Bytes[ 8 ], Bytes[ 9 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+   11 : begin
+        if NOT Instruction_With_Declare_Byte_11( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ], Bytes[ 3 ], Bytes[ 4 ], Bytes[ 5 ], Bytes[ 6 ], Bytes[ 7 ], Bytes[ 8 ], Bytes[ 9 ], Bytes[ 10 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+   12 : begin
+        if NOT Instruction_With_Declare_Byte_12( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ], Bytes[ 3 ], Bytes[ 4 ], Bytes[ 5 ], Bytes[ 6 ], Bytes[ 7 ], Bytes[ 8 ], Bytes[ 9 ], Bytes[ 10 ], Bytes[ 11 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+   13 : begin
+        if NOT Instruction_With_Declare_Byte_13( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ], Bytes[ 3 ], Bytes[ 4 ], Bytes[ 5 ], Bytes[ 6 ], Bytes[ 7 ], Bytes[ 8 ], Bytes[ 9 ], Bytes[ 10 ], Bytes[ 11 ], Bytes[ 12 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+   14 : begin
+        if NOT Instruction_With_Declare_Byte_14( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ], Bytes[ 3 ], Bytes[ 4 ], Bytes[ 5 ], Bytes[ 6 ], Bytes[ 7 ], Bytes[ 8 ], Bytes[ 9 ], Bytes[ 10 ], Bytes[ 11 ], Bytes[ 12 ], Bytes[ 13 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+   15 : begin
+        if NOT Instruction_With_Declare_Byte_15( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ], Bytes[ 3 ], Bytes[ 4 ], Bytes[ 5 ], Bytes[ 6 ], Bytes[ 7 ], Bytes[ 8 ], Bytes[ 9 ], Bytes[ 10 ], Bytes[ 11 ], Bytes[ 12 ], Bytes[ 13 ], Bytes[ 14 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+   16 : begin
+        if NOT Instruction_With_Declare_Byte_16( result, Bytes[ 0 ], Bytes[ 1 ], Bytes[ 2 ], Bytes[ 3 ], Bytes[ 4 ], Bytes[ 5 ], Bytes[ 6 ], Bytes[ 7 ], Bytes[ 8 ], Bytes[ 9 ], Bytes[ 10 ], Bytes[ 11 ], Bytes[ 12 ], Bytes[ 13 ], Bytes[ 14 ], Bytes[ 14 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+  else
+    FillChar( result, SizeOf( result ), 0 );
+  end;
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_1( result, B0 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_2( result, B0, B1 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_3( result, B0, B1, B2 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_4( result, B0, B1, B2, B3 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_5( result, B0, B1, B2, B3 , B4 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_6( result, B0, B1, B2, B3 , B4, B5 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_7( result, B0, B1, B2, B3 , B4, B5, B6 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_8( result, B0, B1, B2, B3 , B4, B5, B6, B7 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_9( result, B0, B1, B2, B3 , B4, B5, B6, B7, B8 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_10( result, B0, B1, B2, B3 , B4, B5, B6, B7, B8, B9 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte; B10 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_11( result, B0, B1, B2, B3 , B4, B5, B6, B7, B8, B9, B10 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte; B10 : Byte; B11 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_12( result, B0, B1, B2, B3 , B4, B5, B6, B7, B8, B9, B10, B11 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte; B10 : Byte; B11 : Byte; B12 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_13( result, B0, B1, B2, B3 , B4, B5, B6, B7, B8, B9, B10, B11, B12 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte; B10 : Byte; B11 : Byte; B12 : Byte; B13 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_14( result, B0, B1, B2, B3 , B4, B5, B6, B7, B8, B9, B10, B11, B12, B13 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte; B10 : Byte; B11 : Byte; B12 : Byte; B13 : Byte; B14 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_15( result, B0, B1, B2, B3 , B4, B5, B6, B7, B8, B9, B10, B11, B12, B13, B14 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Byte_( B0 : Byte; B1 : Byte; B2 : Byte; B3 : Byte; B4 : Byte; B5 : Byte; B6 : Byte; B7 : Byte; B8 : Byte; B9 : Byte; B10 : Byte; B11 : Byte; B12 : Byte; B13 : Byte; B14 : Byte; B15 : Byte ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Byte_16( result, B0, B1, B2, B3 , B4, B5, B6, B7, B8, B9, B10, B11, B12, B13, B14, B15 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Word_( Words : Array of Word ) : TInstruction;
+begin
+  case Length( Words ) of
+    1 : begin
+        if NOT Instruction_With_Declare_Word_1( result, Words[ 0 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    2 : begin
+        if NOT Instruction_With_Declare_Word_2( result, Words[ 0 ], Words[ 1 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    3 : begin
+        if NOT Instruction_With_Declare_Word_3( result, Words[ 0 ], Words[ 1 ], Words[ 2 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    4 : begin
+        if NOT Instruction_With_Declare_Word_4( result, Words[ 0 ], Words[ 1 ], Words[ 2 ], Words[ 3 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    5 : begin
+        if NOT Instruction_With_Declare_Word_5( result, Words[ 0 ], Words[ 1 ], Words[ 2 ], Words[ 3 ], Words[ 4 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    6 : begin
+        if NOT Instruction_With_Declare_Word_6( result, Words[ 0 ], Words[ 1 ], Words[ 2 ], Words[ 3 ], Words[ 4 ], Words[ 5 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    7 : begin
+        if NOT Instruction_With_Declare_Word_7( result, Words[ 0 ], Words[ 1 ], Words[ 2 ], Words[ 3 ], Words[ 4 ], Words[ 5 ], Words[ 6 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    8 : begin
+        if NOT Instruction_With_Declare_Word_8( result, Words[ 0 ], Words[ 1 ], Words[ 2 ], Words[ 3 ], Words[ 4 ], Words[ 5 ], Words[ 6 ], Words[ 7 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+  else
+    FillChar( result, SizeOf( result ), 0 );
+  end;
+end;
+
+function Instruction_With_Declare_Word_( W0 : Word ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Word_1( result, W0 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Word_2( result, W0, W1 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word; W2 : Word ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Word_3( result, W0, W1, W2 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word; W2 : Word; W3 : Word ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Word_4( result, W0, W1, W2, W3 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word; W2 : Word; W3 : Word; W4 : Word ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Word_5( result, W0, W1, W2, W3, W4 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word; W2 : Word; W3 : Word; W4 : Word; W5 : Word ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Word_6( result, W0, W1, W2, W3, W4, W5 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word; W2 : Word; W3 : Word; W4 : Word; W5 : Word; W6 : Word ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Word_7( result, W0, W1, W2, W3, W4, W5, W6 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_Word_( W0 : Word; W1 : Word; W2 : Word; W3 : Word; W4 : Word; W5 : Word; W6 : Word; W7 : Word ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_Word_8( result, W0, W1, W2, W3, W4, W5, W6, W7 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_DWord_( DWords : Array of Cardinal ) : TInstruction;
+begin
+  case Length( DWords ) of
+    1 : begin
+        if NOT Instruction_With_Declare_DWord_1( result, DWords[ 0 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    2 : begin
+        if NOT Instruction_With_Declare_DWord_2( result, DWords[ 0 ], DWords[ 1 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    3 : begin
+        if NOT Instruction_With_Declare_DWord_3( result, DWords[ 0 ], DWords[ 1 ], DWords[ 2 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    4 : begin
+        if NOT Instruction_With_Declare_DWord_4( result, DWords[ 0 ], DWords[ 1 ], DWords[ 2 ], DWords[ 3 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+  else
+    FillChar( result, SizeOf( result ), 0 );
+  end;
+end;
+
+function Instruction_With_Declare_DWord_( D0 : Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_DWord_1( result, D0 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_DWord_( D0 : Cardinal; D1 : Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_DWord_2( result, D0, D1 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_DWord_( D0 : Cardinal; D1 : Cardinal; D2 : Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_DWord_3( result, D0, D1, D2 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_DWord_( D0 : Cardinal; D1 : Cardinal; D2 : Cardinal; D3 : Cardinal ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_DWord_4( result, D0, D1, D2, D3 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_QWord_( QWords : Array of UInt64 ) : TInstruction;
+begin
+  case Length( QWords ) of
+    1 : begin
+        if NOT Instruction_With_Declare_QWord_1( result, QWords[ 0 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+    2 : begin
+        if NOT Instruction_With_Declare_QWord_2( result, QWords[ 0 ], QWords[ 1 ] ) then
+          FillChar( result, SizeOf( result ), 0 );
+        end;
+  else
+    FillChar( result, SizeOf( result ), 0 );
+  end;
+end;
+
+function Instruction_With_Declare_QWord_( Q0 : UInt64 ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_QWord_1( result, Q0 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+function Instruction_With_Declare_QWord_( Q0 : UInt64; Q1 : UInt64 ) : TInstruction;
+begin
+  if NOT Instruction_With_Declare_QWord_2( result, Q0, Q1 ) then
+    FillChar( result, SizeOf( result ), 0 );
+end;
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 end.
