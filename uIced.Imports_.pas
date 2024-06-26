@@ -8,6 +8,8 @@ unit uIced.Imports;
 
 interface
 
+{$WARN UNSAFE_TYPE OFF}
+
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 uses
   uIced.Types; 
@@ -2049,6 +2051,8 @@ var
   Instruction_With_Declare_QWord_1 : function( var Instruction : TInstruction; Q0 : UInt64 ) : Boolean; cdecl = nil;
   Instruction_With_Declare_QWord_2 : function( var Instruction : TInstruction; Q0 : UInt64; Q1 : UInt64 ) : Boolean; cdecl = nil;
 
+function IsInitDLL : Boolean;
+
 {$WARNINGS ON}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2060,6 +2064,11 @@ uses
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 var
   Handle : THandle = 0;  
+
+function IsInitDLL : Boolean;
+begin
+  result := ( Handle <> 0 ) AND ( Handle <> INVALID_HANDLE_VALUE );
+end;
 
 procedure Load;
 const
