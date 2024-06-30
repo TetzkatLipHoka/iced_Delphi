@@ -6,12 +6,7 @@ unit uIced;
   TetzkatLipHoka 2022-2024
 }
 
-// MS
-// Finish details ..
-//    function    FindPreviousInstruction( Code : TMemoryStream; Address : UInt64; var Offset : UInt64; InstructionCount : Word = 1; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : pIcedDetail = nil ) : Cardinal; overload;
-//    function    FindPreviousInstruction( Code : PByte; Size : Cardinal; Address : UInt64; var Offset : UInt64; InstructionCount : Word = 1; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : pIcedDetail = nil ) : Cardinal; overload;
-//    function    FindPreviousInstruction( Code : TMemoryStream; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; DesiredInstructionOffset : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : pIcedDetail = nil ) : Cardinal; overload;
-//    function    FindPreviousInstruction( Code : PByte; Size : Cardinal; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; DesiredInstructionOffset : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : pIcedDetail = nil ) : Cardinal; overload;
+// MS Finish details ..
 
 interface
 
@@ -27,12 +22,14 @@ interface
 
 {.$DEFINE DECODER_LOCAL_POSITION} // Buffer-Position is saved in Local-Variable, updated each Decode
 
+{.$DEFINE SynUnicode}
 {$DEFINE AssemblyTools} // MS test again in the end
 {.$DEFINE TEST_FUNCTIONS}
 
 uses
   Classes, SysUtils,
-  {$IFNDEF UNICODE}SynUnicode,{$ENDIF}  
+  {$IFDEF TEST_FUNCTIONS}Windows,{$ENDIF}
+  {$IF NOT Defined( UNICODE ) AND Defined( SynUnicode )}SynUnicode,{$IFEND}
   {$IFDEF AssemblyTools}uAssemblyTools,{$ENDIF}
   uIced.Imports, uIced.Types;
 
@@ -146,6 +143,7 @@ type
     property    Options : Cardinal     read GetOptions write SetOptions;
     procedure   Encode( RIP : UInt64; var Instructions : TInstruction; Count : NativeUInt; var Results : TBlockEncoderResult ); overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
     procedure   Encode( RIP : UInt64; var Instructions : TInstructionArray; var Results : TBlockEncoderResult ); overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
+    procedure   Encode( RIP : UInt64; var Instructions : TInstructionList; var Results : TBlockEncoderResult ); overload; {$IF CompilerVersion >= 23}inline;{$IFEND}
     procedure   Clear; {$IF CompilerVersion >= 23}inline;{$IFEND}
   end;
 
@@ -249,13 +247,14 @@ type
     fType            : TIcedFormatterType;
     fHandle          : Pointer;
     fOptions         : TIcedFormatterSettings;
+    fSpecialized     : TIcedSpecializedFormatterOptions;
     fSymbolResolver  : TSymbolResolverCallback;
     fOptionsProvider : TFormatterOptionsProviderCallback;
     fFormatterOutput : TFormatterOutputCallback;
     fOutputHandle    : Pointer;
+    fShowSymbols     : Boolean;
     {$IFDEF AssemblyTools}
     fSymbolHandler   : TSymbolHandler;
-    fShowSymbols     : Boolean;
     {$ENDIF AssemblyTools}
     procedure   CreateHandle( KeepConfiguration : Boolean = False );
     function    GetHandle : Pointer;
@@ -267,9 +266,9 @@ type
     function    GetFormatterOutput : TFormatterOutputCallback;
     procedure   SetFormatterOutput( Value : TFormatterOutputCallback );
 
+    procedure   SetShowSymbols( Value : Boolean );
     {$IFDEF AssemblyTools}
     procedure   SetSymbolHandler( Value : TSymbolHandler );
-    procedure   SetShowSymbols( Value : Boolean );
     {$ENDIF AssemblyTools}
 
     // Options
@@ -299,6 +298,11 @@ type
     procedure   SetUseHexPrefix( Value : Boolean );
     function    GetAlwaysShowMemorySize : Boolean;
     procedure   SetAlwaysShowMemorySize( Value : Boolean );
+    function    GetEnable_DB_DW_DD_DQ : Boolean;
+    procedure   SetEnable_DB_DW_DD_DQ( Value : Boolean );
+    function    GetVerifyOutputHasEnoughBytesLeft : Boolean;
+    procedure   SetVerifyOutputHasEnoughBytesLeft( Value : Boolean );
+
     // Common
     function    GetSpaceAfterOperandSeparator : Boolean;
     procedure   SetSpaceAfterOperandSeparator( Value : Boolean );
@@ -430,9 +434,9 @@ type
     property    OptionsProvider                 : TFormatterOptionsProviderCallback  read GetOptionsProvider                write SetOptionsProvider;
     property    Callback                        : TFormatterOutputCallback           read GetFormatterOutput                write SetFormatterOutput;
 
+    property    ShowSymbols                     : Boolean                            read fShowSymbols                      write SetShowSymbols;
     {$IFDEF AssemblyTools}
     property    SymbolHandler                   : TSymbolHandler                     read fSymbolHandler                    write SetSymbolHandler;
-    property    ShowSymbols                     : Boolean                            read fShowSymbols                      write SetShowSymbols;
     {$ENDIF AssemblyTools}
 
     // Options
@@ -453,6 +457,9 @@ type
     // Specialized
     property    UseHexPrefix                    : Boolean                            read GetUseHexPrefix                   write SetUseHexPrefix;
     property    AlwaysShowMemorySize            : Boolean                            read GetAlwaysShowMemorySize           write SetAlwaysShowMemorySize;
+    property    Enable_DB_DW_DD_DQ              : Boolean                            read GetEnable_DB_DW_DD_DQ             write SetEnable_DB_DW_DD_DQ;
+    property    VerifyOutputHasEnoughBytesLeft  : Boolean                            read GetVerifyOutputHasEnoughBytesLeft write SetVerifyOutputHasEnoughBytesLeft;
+
     // Common
     property    SpaceAfterOperandSeparator      : Boolean                            read GetSpaceAfterOperandSeparator     write SetSpaceAfterOperandSeparator;
     property    AlwaysShowSegmentRegister       : Boolean                            read GetAlwaysShowSegmentRegister      write SetAlwaysShowSegmentRegister;
@@ -530,11 +537,22 @@ type
   tIcedReferenceScanResults = Array of tIcedReferenceScanResult;
 
   tIcedAssemblyScanMode = (
-    asmEqual, asmWildcard
+    asmEqual, asmSimiliar, asmWildcard
     {$IF CompilerVersion >= 22}, asmRegExp{$IFEND} // XE
   );
 
   tIcedPointerScanProcessEvent = procedure( Current, Total : Cardinal; var Cancel : Boolean ) of object;
+
+  tIcedAssemblyCompareMode = ( acmCenter, acmForward, acmBackward );
+
+{$IF NOT Declared( TByteInstruction )} // IFNDEF AssemblyTools
+const
+  MAX_INSTRUCTION_LEN_ = 15;
+  MASKING_OFFSET = $10000;  
+type
+  TByteInstruction = Array [ 0..MAX_INSTRUCTION_LEN_-1 ] of Byte;
+  pByteInstruction = ^TByteInstruction;
+{$IFEND}
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   TIced = class
@@ -553,30 +571,62 @@ type
     property    InfoFactory  : TInstructionInfoFactory read fInfoFactory;
     property    Formatter    : TIcedFormatter          read fFormatter;
 
-    function    DecodeFromFile( FileName : String; Size : Cardinal; Offset : UInt64; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : Cardinal;
-    function    DecodeFromStream( Data : TMemoryStream; Size : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : Cardinal;
+    {$IF Declared( SynUnicode )}
+    function    DecodeFromFile( FileName : String; Size : Cardinal; Offset : UInt64; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : Cardinal; overload;
+    function    DecodeFromStream( Data : TMemoryStream; Size : Cardinal; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : Cardinal; overload;
 
-    function    Decode( Data : PByte; Size : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal; overload;
-    function    Decode( Data : PByte; Size : Cardinal; Count : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal; overload;
-    function    Decode( Data : PByte; Size : Cardinal; var Instruction: String; CodeOffset : UInt64 = UInt64( 0 ); InstructionBytes : pString = nil; Offset : PUInt64 = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF AssemblyTools} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : Cardinal; overload;
-    function    Decode( Data : string; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : boolean; overload;
-    function    Decode( Data : TStrings; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : boolean; overload;
+    function    Decode( Data : PByte; Size : Cardinal; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal; overload;
+    function    Decode( Data : PByte; Size : Cardinal; Count : Cardinal; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal; overload;
+    function    Decode( Data : string; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : boolean; overload;
+    function    Decode( Data : TStrings; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : boolean; overload;
 
-    function    DecodeCombineNOP( Data : PByte; Size : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal; overload;
-    function    DecodeCombineNOP( Data : PByte; Size : Cardinal; Count : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal; overload;
+    function    DecodeCombineNOP( Data : PByte; Size : Cardinal; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal; overload;
+    function    DecodeCombineNOP( Data : PByte; Size : Cardinal; Count : Cardinal; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal; overload;
+    {$IFEND UNICODE}
+
+    function    DecodeFromFile( FileName : String; Size : Cardinal; Offset : UInt64; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : Cardinal; overload;
+    function    DecodeFromStream( Data : TMemoryStream; Size : Cardinal; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : Cardinal; overload;
+
+    function    Decode( Data : PByte; Size : Cardinal; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal; overload;
+    function    Decode( Data : PByte; Size : Cardinal; Count : Cardinal; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal; overload;
+    function    Decode( Data : PByte; Size : Cardinal; var Instruction: String; CodeOffset : UInt64 = UInt64( 0 ); InstructionBytes : pString = nil; Offset : PUInt64 = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF AssemblyTools} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : Cardinal; overload;
+    function    Decode( Data : string; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : boolean; overload;
+    function    Decode( Data : TStrings; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : boolean; overload;
+
+    function    DecodeCombineNOP( Data : PByte; Size : Cardinal; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal; overload;
+    function    DecodeCombineNOP( Data : PByte; Size : Cardinal; Count : Cardinal; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal; overload;
 
     {$IFDEF AssemblyTools}
-    function    DissambleAddress( var Data : TByteInstruction; Address : UInt64; Instruction : PString = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
-    function    DissambleAddress( Data : PByte; Size : Cardinal; Address : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
+    function    DecodeAddress( var Data : TByteInstruction; Address : UInt64; Instruction : PString = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
+    function    DecodeAddress( Data : PByte; Size : Cardinal; Address : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
     {$ENDIF AssemblyTools}
-    function    PointerScan( Code : PByte; Size : Cardinal; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+    function    Compare( Data : PByte; Size : Cardinal; Offset : UInt64; DataCompare : PByte; SizeCompare : Cardinal; OffsetCompare : UInt64; Count : Word; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyCompareMode = acmCenter ) : Cardinal; overload;
+    function    Compare( Data : TMemoryStream; Offset : UInt64; DataCompare : TMemoryStream; OffsetCompare : UInt64; Count : Word; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyCompareMode = acmCenter ) : Cardinal; overload;
+
+    function    PointerScan( Data : PByte; Size : Cardinal; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
     function    PointerScan( Data : TMemoryStream; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
-    function    ReferenceScan( Code : PByte; Size : Cardinal; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+    function    ReferenceScan( Data : PByte; Size : Cardinal; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
     function    ReferenceScan( Data : TMemoryStream; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
-    function    AssemblyScan( Code : PByte; Size : Cardinal; Assembly : String; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+
+    function    AssemblyScan( Data : PByte; Size : Cardinal; Assembly : String; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
     function    AssemblyScan( Data : TMemoryStream; Assembly : String; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+
+    function    AssemblyScan( Data : PByte; Size : Cardinal; Assembly : PInstruction; AssemblyCount : Cardinal; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+    function    AssemblyScan( Data : TMemoryStream; Assembly : PInstruction; AssemblyCount : Cardinal; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+    function    AssemblyScan( Data : PByte; Size : Cardinal; var Assembly : TInstructionArray; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+    function    AssemblyScan( Data : TMemoryStream; var Assembly : TInstructionArray; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal; overload;
+
     function    FindInstruction( Data : PByte; Size : Cardinal; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
     function    FindInstruction( Data : TMemoryStream; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
+
+    function    FindNextInstruction( Data : TMemoryStream; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; InstructionCount : Word = 1; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
+    function    FindNextInstruction( Data : PByte; Size : Cardinal; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; InstructionCount : Word = 1; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
+
+// MS
+//    function    FindPreviousInstructionCount( Data : TMemoryStream; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; InstructionCount : Word = 1; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
+//    function    FindPreviousInstructionCount( Data : PByte; Size : Cardinal; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; InstructionCount : Word = 1; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
+//    function    FindPreviousInstruction( Data : TMemoryStream; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; DesiredInstructionOffset : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
+//    function    FindPreviousInstruction( Data : PByte; Size : Cardinal; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; DesiredInstructionOffset : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal; overload;
   end;
 
 var
@@ -585,7 +635,7 @@ var
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 {$IFDEF TEST_FUNCTIONS}
 const
-  EXAMPLE_RIP: UInt64 = $7FFAC46ACDA4;
+  EXAMPLE_RIP: UInt64 = UInt64( $7FFAC46ACDA4 );
   EXAMPLE_CODE: Array [ 0..61 ] of Byte = (
     $48, $89, $5C, $24, $10, $48, $89, $74, $24, $18, $55, $57, $41, $56, $48, $8D,
     $AC, $24, $00, $FF, $FF, $FF, $48, $81, $EC, $00, $02, $00, $00, $48, $8B, $05,
@@ -594,13 +644,16 @@ const
   );
 
 function Test( StrL : TStringList ) : Boolean;
-function Test_Decode( Data : PByte; Size : Cardinal; RIP : UInt64; AOutput : TStringList; FormatterType : TIcedFormatterType = ftMasm;
+function Test_Decode( Data : PByte; Size : Cardinal; ARIP : UInt64; AOutput : TStringList; FormatterType : TIcedFormatterType = ftMasm;
                       SymbolResolver : TSymbolResolverCallback = nil;
                       FormatterOptionsProviderCallback : TFormatterOptionsProviderCallback = nil;
                       FormatterOutputCallback : TFormatterOutputCallback = nil;
                       Assembly : Boolean = True; DecodeInfos : Boolean = True; Infos : Boolean = True ) : Boolean;
-function  Test_ReEncode( Data : PByte; Size : Cardinal; RIP : UInt64; {LocalBuffer : Boolean = False;} BlockEncode : Boolean = False; AOutput : TStringList = nil ) : Boolean;
-procedure Test_Assemble( AOutput : TStringList; RIP : UInt64 = UInt64( $00001248FC840000 ) );
+function  Test_ReEncode( Data : PByte; Size : Cardinal; ARIP : UInt64; {LocalBuffer : Boolean = False;} BlockEncode : Boolean = False; AOutput : TStringList = nil ) : Boolean;
+procedure Test_Assemble( AOutput : TStringList; ARIP : UInt64 = UInt64( $00001248FC840000 ) );
+
+function  Benchmark( Data : PByte; Size : Cardinal; Bitness : TIcedBitness; AFormat : Boolean = False ) : Double; overload;
+function  Benchmark( FileName : String; Bitness : TIcedBitness; AFormat : Boolean = False ) : Double; overload;
 {$ENDIF TEST_FUNCTIONS}
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -818,7 +871,7 @@ end;
 
 function TIcedDecoder.GetLastError : TDecoderError;
 begin
-  result := deNone;
+  result.DecoderError := deNone;
   if ( self = nil ) then
     Exit;
   if ( fHandle = nil ) then
@@ -1263,6 +1316,11 @@ begin
   Encode( RIP, Instructions[ 0 ], NativeUInt( Length( Instructions ) ), Results );
 end;
 
+procedure TIcedBlockEncoder.Encode( RIP : UInt64; var Instructions : TInstructionList; var Results : TBlockEncoderResult );
+begin
+  Encode( RIP, Instructions.Pointer^, Instructions.Count, Results );
+end;
+
 procedure TIcedBlockEncoder.Clear;
 begin
   if ( self = nil ) then
@@ -1327,7 +1385,6 @@ begin
 end;
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-{$IFDEF AssemblyTools}
 function SymbolResolverCallback( var Instruction: TInstruction; Operand: Cardinal; InstructionOperand : Cardinal; Address: UInt64; Size: Cardinal; UserData : Pointer ) : PAnsiChar; cdecl;
 begin
   if ( userData = nil ) then
@@ -1335,19 +1392,20 @@ begin
     result := '';
     Exit;
     end;
-
+  {$IFDEF AssemblyTools}
   if ( TIcedFormatter( UserData ).fSymbolHandler <> nil ) then
     begin
     result := PAnsiChar( AnsiString( TIcedFormatter( UserData ).fSymbolHandler.Symbol( Address ) ) );
     if ( result = '' ) AND ( @TIcedFormatter( UserData ).fSymbolResolver <> nil ) then
       result := PAnsiChar( TIcedFormatter( UserData ).fSymbolResolver( Instruction, Operand, InstructionOperand, Address, Size, UserData ) );
     end
-  else if ( @TIcedFormatter( UserData ).fSymbolResolver <> nil ) then
+  else
+  {$ENDIF AssemblyTools}
+  if ( @TIcedFormatter( UserData ).fSymbolResolver <> nil ) then
     result := PAnsiChar( TIcedFormatter( UserData ).fSymbolResolver( Instruction, Operand, InstructionOperand, Address, Size, UserData ) )
   else
     result := '';
 end;
-{$ENDIF AssemblyTools}
 
 constructor TIcedFormatter.Create( FormatterType : TIcedFormatterType = DEFAULT_FORMATTER; SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil );
 begin
@@ -1360,9 +1418,13 @@ begin
   fFormatterOutput := nil;
   fOutputHandle    := nil;
 
+  fSpecialized.ENABLE_SYMBOL_RESOLVER              := False; // Internally Handled
+  fSpecialized.ENABLE_DB_DW_DD_DQ                  := False;
+  fSpecialized.verify_output_has_enough_bytes_left := True;
+
+  fShowSymbols     := True;
   {$IFDEF AssemblyTools}
   fSymbolHandler   := nil;
-  fShowSymbols     := True;
   {$ENDIF AssemblyTools}
 
   CreateHandle;
@@ -1391,12 +1453,12 @@ begin
   if ( fHandle <> nil ) then
     IcedFreeMemory( fHandle );
 
-  {$IFDEF AssemblyTools}
-  if fShowSymbols AND ( ( @fSymbolResolver <> nil ) OR ( fSymbolHandler <> nil ) ) then
+  if fShowSymbols AND ( ( @fSymbolResolver <> nil ){$IFDEF AssemblyTools} OR ( fSymbolHandler <> nil ){$ENDIF} ) then
     SymbolResolver := SymbolResolverCallback
   else
-  {$ENDIF}
     SymbolResolver := nil;
+
+  fSpecialized.ENABLE_SYMBOL_RESOLVER := ( @SymbolResolver <> nil );
 
   case fType of
 //    ftMasm        : fHandle := MasmFormatter_Create( SymbolResolver, fOptionsProvider, Pointer( self ) );
@@ -1404,7 +1466,7 @@ begin
     ftGas         : fHandle := GasFormatter_Create( SymbolResolver, fOptionsProvider, Pointer( self ) );
     ftIntel       : fHandle := IntelFormatter_Create( SymbolResolver, fOptionsProvider, Pointer( self ) );
     ftFast        : fHandle := FastFormatter_Create( SymbolResolver, Pointer( self ) );
-    ftSpecialized : fHandle := SpecializedFormatter_Create( SymbolResolver, False, Pointer( self ) );
+    ftSpecialized : fHandle := SpecializedFormatter_Create( SymbolResolver, Pointer( self ) );
   else
     fHandle := MasmFormatter_Create( SymbolResolver, fOptionsProvider, Pointer( self ) );
   end;
@@ -1536,7 +1598,7 @@ begin
     ftGas         : GasFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
     ftIntel       : IntelFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
     ftFast        : FastFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
-    ftSpecialized : SpecializedFormatter_Format( fHandle, sftSymbol, Instruction, @tOutput[ 0 ], Length( tOutput ) );
+    ftSpecialized : SpecializedFormatter_Format( fHandle, fSpecialized.Options, Instruction, @tOutput[ 0 ], Length( tOutput ) ); // M
   else
     MasmFormatter_Format( fHandle, Instruction, @tOutput[ 0 ], Length( tOutput ) );
   end;
@@ -1568,7 +1630,7 @@ begin
     ftGas         : GasFormatter_Format( fHandle, Instruction, AOutput, Size );
     ftIntel       : IntelFormatter_Format( fHandle, Instruction, AOutput, Size );
     ftFast        : FastFormatter_Format( fHandle, Instruction, AOutput, Size );
-    ftSpecialized : SpecializedFormatter_Format( fHandle, sftSymbol, Instruction, AOutput, Size );
+    ftSpecialized : SpecializedFormatter_Format( fHandle, fSpecialized.Options, Instruction, AOutput, Size ); // M
   else
     MasmFormatter_Format( fHandle, Instruction, AOutput, Size );
   end;
@@ -1629,8 +1691,8 @@ begin
   if ( fType = ftSpecialized ) then
     begin
     // Specialized
-    result.UseHexPrefix                    := SpecializedFormatter_GetUseHexPrefix( fHandle, sftSymbol );
-    result.AlwaysShowMemorySize            := SpecializedFormatter_GetAlwaysShowMemorySize( fHandle, sftSymbol );
+    result.UseHexPrefix                    := SpecializedFormatter_GetUseHexPrefix( fHandle );
+    result.AlwaysShowMemorySize            := SpecializedFormatter_GetAlwaysShowMemorySize( fHandle );
     end;
 
   // Common
@@ -1927,12 +1989,12 @@ begin
   Settings^.LeadingZeros := Boolean( StrToIntDef( StrL.Values[ 'LeadingZeros' ], Byte( fOptions.LeadingZeros ) ) );
   Settings^.SmallHexNumbersInDecimal := Boolean( StrToIntDef( StrL.Values[ 'SmallHexNumbersInDecimal' ], Byte( fOptions.SmallHexNumbersInDecimal ) ) );
   Settings^.AddLeadingZeroToHexNumbers := Boolean( StrToIntDef( StrL.Values[ 'AddLeadingZeroToHexNumbers' ], Byte( fOptions.AddLeadingZeroToHexNumbers ) ) );
-  Settings^.NumberBase := TNumberBase( StrToIntDef( StrL.Values[ 'NumberBase' ], Byte( fOptions.NumberBase ) ) );
+  Settings^.NumberBase.NumberBase := TNumberBaseType( StrToIntDef( StrL.Values[ 'NumberBase' ], Byte( fOptions.NumberBase.NumberBase ) ) );
   Settings^.BranchLeadingZeros := Boolean( StrToIntDef( StrL.Values[ 'BranchLeadingZeros' ], Byte( fOptions.BranchLeadingZeros ) ) );
   Settings^.SignedImmediateOperands := Boolean( StrToIntDef( StrL.Values[ 'SignedImmediateOperands' ], Byte( fOptions.SignedImmediateOperands ) ) );
   Settings^.SignedMemoryDisplacements := Boolean( StrToIntDef( StrL.Values[ 'SignedMemoryDisplacements' ], Byte( fOptions.SignedMemoryDisplacements ) ) );
   Settings^.DisplacementLeadingZeros := Boolean( StrToIntDef( StrL.Values[ 'DisplacementLeadingZeros' ], Byte( fOptions.DisplacementLeadingZeros ) ) );
-  Settings^.MemorySizeOptions := TMemorySizeOptions( StrToIntDef( StrL.Values[ 'MemorySizeOptions' ], Byte( fOptions.MemorySizeOptions ) ) );
+  Settings^.MemorySizeOptions.MemorySizeOptions := TMemorySizeOptionsType( StrToIntDef( StrL.Values[ 'MemorySizeOptions' ], Byte( fOptions.MemorySizeOptions.MemorySizeOptions ) ) );
   Settings^.ShowBranchSize := Boolean( StrToIntDef( StrL.Values[ 'ShowBranchSize' ], Byte( fOptions.ShowBranchSize ) ) );
   Settings^.PreferST0 := Boolean( StrToIntDef( StrL.Values[ 'PreferST0' ], Byte( fOptions.PreferST0 ) ) );
   Settings^.ShowUselessPrefixes := Boolean( StrToIntDef( StrL.Values[ 'ShowUselessPrefixes' ], Byte( fOptions.ShowUselessPrefixes ) ) );
@@ -2202,7 +2264,7 @@ begin
     Exit;
   fOptions.UseHexPrefix := Value;
 
-  {result := }SpecializedFormatter_SetUseHexPrefix( fHandle, sftSymbol, Value );
+  {result := }SpecializedFormatter_SetUseHexPrefix( fHandle, Value );
 end;
 
 function TIcedFormatter.GetAlwaysShowMemorySize : Boolean;
@@ -2231,7 +2293,59 @@ begin
     Exit;
   fOptions.AlwaysShowMemorySize := Value;
 
-  {result := }SpecializedFormatter_SetAlwaysShowMemorySize( fHandle, sftSymbol, Value );
+  {result := }SpecializedFormatter_SetAlwaysShowMemorySize( fHandle, Value );
+end;
+
+function TIcedFormatter.GetEnable_DB_DW_DD_DQ : Boolean;
+begin
+  result := false;
+  if ( self = nil ) then
+    Exit;
+  if ( fHandle = nil ) then
+    Exit;
+//  if ( fType <> ftSpecialized ) then
+//    Exit;
+  result := fSpecialized.ENABLE_DB_DW_DD_DQ;
+end;
+
+procedure TIcedFormatter.SetEnable_DB_DW_DD_DQ( Value : Boolean );
+begin
+  if ( self = nil ) then
+    Exit;
+  if ( fHandle = nil ) then
+    Exit;
+
+  fSpecialized.ENABLE_DB_DW_DD_DQ := Value;
+
+  if ( fType <> ftSpecialized ) then
+    Exit;
+  CreateHandle;
+end;
+
+function TIcedFormatter.GetVerifyOutputHasEnoughBytesLeft : Boolean;
+begin
+  result := false;
+  if ( self = nil ) then
+    Exit;
+  if ( fHandle = nil ) then
+    Exit;
+//  if ( fType <> ftSpecialized ) then
+//    Exit;
+  result := fSpecialized.verify_output_has_enough_bytes_left;
+end;
+
+procedure TIcedFormatter.SetVerifyOutputHasEnoughBytesLeft( Value : Boolean );
+begin
+  if ( self = nil ) then
+    Exit;
+  if ( fHandle = nil ) then
+    Exit;
+
+  fSpecialized.verify_output_has_enough_bytes_left := Value;
+
+  if ( fType <> ftSpecialized ) then
+    Exit;
+  CreateHandle;
 end;
 
 // Common
@@ -3286,7 +3400,7 @@ end;
 
 function TIcedFormatter.GetNumberBase : TNumberBase;
 begin
-  result := nbHexadecimal;
+  result.NumberBase := nbHexadecimal;
   if ( self = nil ) then
     Exit;
   if ( fHandle = nil ) then
@@ -3306,7 +3420,7 @@ begin
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
-  if ( fOptions.NumberBase = Value ) then
+  if ( fOptions.NumberBase.NumberBase = Value.NumberBase ) then
     Exit;
   fOptions.NumberBase := Value;
 
@@ -3431,7 +3545,7 @@ end;
 
 function TIcedFormatter.GetMemorySizeOptions : TMemorySizeOptions;
 begin
-  result := msoDefault;
+  result.MemorySizeOptions := msoDefault;
   if ( self = nil ) then
     Exit;
   if ( fHandle = nil ) then
@@ -3451,7 +3565,7 @@ begin
     Exit;
   if ( fType in [ ftFast, ftSpecialized ] ) then
     Exit;
-  if ( fOptions.MemorySizeOptions = Value ) then
+  if ( fOptions.MemorySizeOptions.MemorySizeOptions = Value.MemorySizeOptions ) then
     Exit;
   fOptions.MemorySizeOptions := Value;
 
@@ -3893,6 +4007,20 @@ begin
   {result := }Formatter_SetCC_g( fHandle, fType, Value );
 end;
 
+procedure TIcedFormatter.SetShowSymbols( Value : Boolean );
+begin
+  if ( self = nil ) then
+    Exit;
+  if ( fShowSymbols = Value ) then
+    Exit;
+  if ( fType in [ ftFast, ftSpecialized ] ) then
+    Exit;
+  if Value AND ( ( @fSymbolResolver = nil ){$IFDEF AssemblyTools} AND ( fSymbolHandler = nil ){$ENDIF} ) then
+    Exit;
+  fShowSymbols := Value;    
+  CreateHandle( True{KeepConfiguration} );
+end;
+
 {$IFDEF AssemblyTools}
 procedure TIcedFormatter.SetSymbolHandler( Value : TSymbolHandler );
 begin
@@ -3905,21 +4033,6 @@ begin
     Exit;
 
   fSymbolHandler := Value;
-  CreateHandle( True{KeepConfiguration} );
-end;
-
-procedure TIcedFormatter.SetShowSymbols( Value : Boolean );
-begin
-  if ( self = nil ) then
-    Exit;
-  if ( fShowSymbols = Value ) then
-    Exit;
-  if ( fType in [ ftFast, ftSpecialized ] ) then
-    Exit;
-
-  fShowSymbols := Value;
-  if Value AND ( fSymbolHandler = nil ) then
-    Exit;
   CreateHandle( True{KeepConfiguration} );
 end;
 {$ENDIF AssemblyTools}
@@ -3948,8 +4061,7 @@ end;
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Decoder
-
-function TIced.DecodeFromFile( FileName : String; Size : Cardinal; Offset : UInt64; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : Cardinal;
+function TIced.DecodeFromFile( FileName : String; Size : Cardinal; Offset : UInt64; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : Cardinal;
 var
   S : TMemoryStream;
 begin
@@ -3967,11 +4079,11 @@ begin
 
   if ( Offset <= S.Size ) then
     S.Position := Offset;
-  result := DecodeFromStream( S, Size, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, CalcJumpLines, CombineNOP );
+  result := DecodeFromStream( S, Size, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, {$IFDEF AssemblyTools}CalcJumpLines,{$ENDIF} CombineNOP );
   S.Free;
 end;
 
-function TIced.DecodeFromStream( Data : TMemoryStream; Size : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : Cardinal;
+function TIced.DecodeFromStream( Data : TMemoryStream; Size : Cardinal; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : Cardinal;
 begin
   if ( Data = nil ) then
     begin
@@ -3984,12 +4096,12 @@ begin
     Size := Data.Size-Data.Position;
 
   if CombineNOP then
-    result := DecodeCombineNOP( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Size, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, CalcJumpLines )
+    result := DecodeCombineNOP( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Size, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings{$IFDEF AssemblyTools}, CalcJumpLines{$ENDIF} )
   else
-    result := Decode( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Size, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, CalcJumpLines );
+    result := Decode( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Size, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings{$IFDEF AssemblyTools}, CalcJumpLines{$ENDIF} );
 end;
 
-function TIced.Decode( Data : PByte; Size : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal;
+function TIced.Decode( Data : PByte; Size : Cardinal; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal;
 const
   DETAILS_BLOCKSIZE = 1000;
 var
@@ -4007,19 +4119,19 @@ begin
 //  if ( StrL_Assembly <> nil ) then
 //    StrL_Assembly.Clear;
 
-  Decoder.SetData( Data, Size, CodeOffset, DecoderSettings );
+  fDecoder.SetData( Data, Size, CodeOffset, DecoderSettings );
 
   {$IFDEF AssemblyTools}
   if ( Details <> nil ) then
     begin
     if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
-      while Decoder.CanDecode do
+      while fDecoder.CanDecode do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
+        fDecoder.Decode( Instruction, Details^ );
         Inc( Details^.Count );
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
@@ -4038,12 +4150,12 @@ begin
       end
     else if ( StrL_Assembly <> nil ) then
       begin
-      while Decoder.CanDecode do
+      while fDecoder.CanDecode do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
+        fDecoder.Decode( Instruction, Details^ );
         Inc( Details^.Count );
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
@@ -4054,12 +4166,12 @@ begin
       end
     else if ( StrL_Hex <> nil ) then
       begin
-      while Decoder.CanDecode do
+      while fDecoder.CanDecode do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
+        fDecoder.Decode( Instruction, Details^ );
         Inc( Details^.Count );
 
         S := '';
@@ -4075,12 +4187,12 @@ begin
       end
     else
       begin
-      while Decoder.CanDecode do
+      while fDecoder.CanDecode do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
+        fDecoder.Decode( Instruction, Details^ );
         Inc( Details^.Count );
 
         Inc( result, Instruction.len );
@@ -4097,9 +4209,9 @@ begin
     begin
     if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
-      while Decoder.CanDecode do
+      while fDecoder.CanDecode do
         begin
-        Decoder.Decode( Instruction );
+        fDecoder.Decode( Instruction );
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
         StrL_Assembly.Add( String( tOutput ) );
@@ -4117,9 +4229,9 @@ begin
       end
     else if ( StrL_Assembly <> nil ) then
       begin
-      while Decoder.CanDecode do
+      while fDecoder.CanDecode do
         begin
-        Decoder.Decode( Instruction );
+        fDecoder.Decode( Instruction );
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
         StrL_Assembly.Add( String( tOutput ) );
@@ -4129,9 +4241,9 @@ begin
       end
     else if ( StrL_Hex <> nil ) then
       begin
-      while Decoder.CanDecode do
+      while fDecoder.CanDecode do
         begin
-        Decoder.Decode( Instruction );
+        fDecoder.Decode( Instruction );
 
         S := '';
         for i := 0 to Instruction.len-1 do
@@ -4147,7 +4259,7 @@ begin
     end;
 end;
 
-function TIced.Decode( Data : PByte; Size : Cardinal; Count : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal;
+function TIced.Decode( Data : PByte; Size : Cardinal; Count : Cardinal; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal;
 const
   DETAILS_BLOCKSIZE = 1000;
 var
@@ -4167,19 +4279,19 @@ begin
 //  if ( StrL_Assembly <> nil ) then
 //    StrL_Assembly.Clear;
 
-  Decoder.SetData( Data, Size, CodeOffset, DecoderSettings );
+  fDecoder.SetData( Data, Size, CodeOffset, DecoderSettings );
 
   {$IFDEF AssemblyTools}
   if ( Details <> nil ) then
     begin
     if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
-      while Decoder.CanDecode AND ( Count > 0 ) do
+      while fDecoder.CanDecode AND ( Count > 0 ) do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
+        fDecoder.Decode( Instruction, Details^ );
         Inc( Details^.Count );
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
@@ -4199,12 +4311,12 @@ begin
       end
     else if ( StrL_Assembly <> nil ) then
       begin
-      while Decoder.CanDecode AND ( Count > 0 ) do
+      while fDecoder.CanDecode AND ( Count > 0 ) do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
+        fDecoder.Decode( Instruction, Details^ );
         Inc( Details^.Count );
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
@@ -4216,12 +4328,12 @@ begin
       end
     else if ( StrL_Hex <> nil ) then
       begin
-      while Decoder.CanDecode AND ( Count > 0 ) do
+      while fDecoder.CanDecode AND ( Count > 0 ) do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
+        fDecoder.Decode( Instruction, Details^ );
         Inc( Details^.Count );
 
         S := '';
@@ -4238,12 +4350,12 @@ begin
       end
     else
       begin
-      while Decoder.CanDecode AND ( Count > 0 ) do
+      while fDecoder.CanDecode AND ( Count > 0 ) do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
+        fDecoder.Decode( Instruction, Details^ );
         Inc( Details^.Count );
 
         Inc( result, Instruction.len );
@@ -4261,9 +4373,9 @@ begin
     begin
     if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
-      while Decoder.CanDecode AND ( Count > 0 ) do
+      while fDecoder.CanDecode AND ( Count > 0 ) do
         begin
-        Decoder.Decode( Instruction );
+        fDecoder.Decode( Instruction );
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
         StrL_Assembly.Add( String( tOutput ) );
@@ -4282,9 +4394,9 @@ begin
       end
     else if ( StrL_Assembly <> nil ) then
       begin
-      while Decoder.CanDecode AND ( Count > 0 ) do
+      while fDecoder.CanDecode AND ( Count > 0 ) do
         begin
-        Decoder.Decode( Instruction );
+        fDecoder.Decode( Instruction );
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
         StrL_Assembly.Add( String( tOutput ) );
@@ -4295,9 +4407,9 @@ begin
       end
     else if ( StrL_Hex <> nil ) then
       begin
-      while Decoder.CanDecode AND ( Count > 0 ) do
+      while fDecoder.CanDecode AND ( Count > 0 ) do
         begin
-        Decoder.Decode( Instruction );
+        fDecoder.Decode( Instruction );
 
         S := '';
         for i := 0 to Instruction.len-1 do
@@ -4314,24 +4426,24 @@ begin
     end;
 end;
 
-function TIced.Decode( Data : PByte; Size : Cardinal; var Instruction: String; CodeOffset : UInt64 = UInt64( 0 ); InstructionBytes : pString = nil; Offset : PUInt64 = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : Cardinal;
+function TIced.Decode( Data : PByte; Size : Cardinal; var Instruction: String; CodeOffset : UInt64 = UInt64( 0 ); InstructionBytes : pString = nil; Offset : PUInt64 = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : Cardinal;
 var
-  StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF};
-  StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF};
+  StrL_Assembly : TStrings;
+  StrL_Hex : TStrings;
   {$IFDEF AssemblyTools}
   Details : TIcedDetails;
   {$ENDIF AssemblyTools}
 begin
-  StrL_Assembly := {$IFNDEF UNICODE}TUnicodeStringList{$ELSE}TStringList{$ENDIF}.Create;
-  StrL_Hex := {$IFNDEF UNICODE}TUnicodeStringList{$ELSE}TStringList{$ENDIF}.Create;
+  StrL_Assembly := TStringList.Create;
+  StrL_Hex := TStringList.Create;
   {$IFDEF AssemblyTools}
   FillChar( Details, SizeOf( Details ), 0 );
   {$ENDIF AssemblyTools}
 
   if CombineNOP then
-    result := DecodeCombineNOP( Data, Size, 1{Count}, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}@Details,{$ENDIF} DecoderSettings, CalcJumpLines )
+    result := DecodeCombineNOP( Data, Size, 1{Count}, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}@Details,{$ENDIF} DecoderSettings{$IFDEF AssemblyTools}, CalcJumpLines{$ENDIF} )
   else
-    result := Decode( Data, Size, 1{Count}, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}@Details,{$ENDIF} DecoderSettings, CalcJumpLines );
+    result := Decode( Data, Size, 1{Count}, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}@Details,{$ENDIF} DecoderSettings{$IFDEF AssemblyTools}, CalcJumpLines{$ENDIF} );
   if ( result > 0 ) then
     begin
     Instruction := StrL_Assembly[ 0 ];
@@ -4360,17 +4472,17 @@ begin
   {$ENDIF AssemblyTools}
 end;
 
-function TIced.Decode( Data : string; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : boolean;
+function TIced.Decode( Data : string; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : boolean;
 var
   StrL : TStringList;
 begin
   StrL := TStringList.Create;
   StrL.Text := Data;
-  result := Decode( StrL, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, CalcJumpLines, CombineNOP );
+  result := Decode( StrL, StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, {$IFDEF AssemblyTools}CalcJumpLines,{$ENDIF} CombineNOP );
   StrL.Free;
 end;
 
-function TIced.Decode( Data : TStrings; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True; CombineNOP : boolean = False ) : boolean;
+function TIced.Decode( Data : TStrings; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : boolean;
   function IsHex( sHex : String ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
   var
     i : Integer;
@@ -4443,7 +4555,7 @@ begin
   tStrL   := TStringList.Create;
 
   // Merge/Join Lines
-  IsDATA := False;
+  IsDATA := False; // MS !!!?
   i := 0;
   while ( i < StrL_In.Count ) do
     begin
@@ -4516,9 +4628,9 @@ begin
 
     if IsDATA then
       begin
-      if Assigned( StrL_Hex ) then
+      if ( StrL_Hex <> nil ) then
         StrL_Hex.Add( StrL_In[ i ] );
-      if Assigned( StrL_Assembly ) then
+      if ( StrL_Assembly <> nil ) then
         StrL_Assembly.Add( StrL_In[ i ] );
       {$IFDEF AssemblyTools}
       if ( Details <> nil ) then
@@ -4612,9 +4724,9 @@ begin
       end;
 
     if CombineNOP then
-      {k := }DecodeCombineNOP( @Bts[ 0 ], Length( Bts ), StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, CalcJumpLines AND ( i = StrL_In.Count-1 ) )
+      {k := }DecodeCombineNOP( @Bts[ 0 ], Length( Bts ), StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings{$IFDEF AssemblyTools}, CalcJumpLines AND ( i = StrL_In.Count-1 ){$ENDIF} )
     else
-      {k := }Decode( @Bts[ 0 ], Length( Bts ), StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, CalcJumpLines AND ( i = StrL_In.Count-1 ) );
+      {k := }Decode( @Bts[ 0 ], Length( Bts ), StrL_Assembly, CodeOffset, StrL_Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings{$IFDEF AssemblyTools}, CalcJumpLines AND ( i = StrL_In.Count-1 ){$ENDIF} );
 
     if ( sCom <> '' ) then
       begin
@@ -4644,10 +4756,10 @@ begin
   result := True;
 end;
 
-function TIced.DecodeCombineNOP( Data : PByte; Size : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal;
+function TIced.DecodeCombineNOP( Data : PByte; Size : Cardinal; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal;
 const
   DETAILS_BLOCKSIZE = 1000;
-  BLOCKSIZE_NOP     = 16;
+  BLOCKSIZE_NOP     = MAX_INSTRUCTION_LEN_;
 var
   Instruction : TInstruction;
   tOutput     : Array [ 0..255 ] of AnsiChar;
@@ -4665,7 +4777,7 @@ begin
 //  if ( StrL_Assembly <> nil ) then
 //    StrL_Assembly.Clear;
 
-  Decoder.SetData( Data, Size, CodeOffset, DecoderSettings );
+  fDecoder.SetData( Data, Size, CodeOffset, DecoderSettings );
 
   bNOP := 0;
   {$IFDEF AssemblyTools}
@@ -4673,16 +4785,16 @@ begin
     begin
     if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
-        bDecode := Decoder.CanDecode;
+        fDecoder.Decode( Instruction, Details^ );
+        bDecode := fDecoder.CanDecode;
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           if ( bNOP = 0 ) then
             begin
@@ -4708,12 +4820,17 @@ begin
             Inc( Data );
             end;
           StrL_Hex.Add( S );
-          Inc( result, bNOP );
           end
         else if ( bNOP = 1 ) then
           begin
           StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
           Inc( Data );
+          end;
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
           end;
         bNOP := 0;
 
@@ -4735,16 +4852,16 @@ begin
       end
     else if ( StrL_Assembly <> nil ) then
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
-        bDecode := Decoder.CanDecode;
+        fDecoder.Decode( Instruction, Details^ );
+        bDecode := fDecoder.CanDecode;
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           if ( bNOP = 0 ) then
             begin
@@ -4763,10 +4880,15 @@ begin
           StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
 //          Inc( Data, bNOP-1 );
-          Inc( result, bNOP );
           end;
 //        else if ( bNOP = 1 ) then
 //          Inc( Data );
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
+          end;
         bNOP := 0;
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
@@ -4778,16 +4900,16 @@ begin
       end
     else if ( StrL_Hex <> nil ) then
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
-        bDecode := Decoder.CanDecode;
+        fDecoder.Decode( Instruction, Details^ );
+        bDecode := fDecoder.CanDecode;
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           if ( bNOP = 0 ) then
             Inc( Details^.Count );
@@ -4806,12 +4928,17 @@ begin
             Inc( Data );
             end;
           StrL_Hex.Add( S );
-          Inc( result, bNOP );
           end
         else if ( bNOP = 1 ) then
           begin
           StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
           Inc( Data );
+          end;
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
           end;
         bNOP := 0;
 
@@ -4830,16 +4957,16 @@ begin
       end
     else
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
-        bDecode := Decoder.CanDecode;
+        fDecoder.Decode( Instruction, Details^ );
+        bDecode := fDecoder.CanDecode;
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           if ( bNOP = 0 ) then
             Inc( Details^.Count );
@@ -4852,10 +4979,15 @@ begin
           begin
           Details^.Items[ Details^.Count-1 ].Size := bNOP;
 //          Inc( Data, bNOP-1 );
-          Inc( result, bNOP );
           end;
 //        else if ( bNOP = 1 ) then
 //          Inc( Data );
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
+          end;
         bNOP := 0;
 
         Inc( Details^.Count );
@@ -4874,13 +5006,13 @@ begin
     begin
     if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
-        Decoder.Decode( Instruction );
-        bDecode := Decoder.CanDecode;
+        fDecoder.Decode( Instruction );
+        bDecode := fDecoder.CanDecode;
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
 
@@ -4905,12 +5037,17 @@ begin
             Inc( Data );
             end;
           StrL_Hex.Add( S );
-          Inc( result, bNOP );
           end
         else if ( bNOP = 1 ) then
           begin
           StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
           Inc( Data );
+          end;
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
           end;
         bNOP := 0;
 
@@ -4930,13 +5067,13 @@ begin
       end
     else if ( StrL_Assembly <> nil ) then
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
-        Decoder.Decode( Instruction );
-        bDecode := Decoder.CanDecode;
+        fDecoder.Decode( Instruction );
+        bDecode := fDecoder.CanDecode;
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
 
@@ -4955,10 +5092,15 @@ begin
           StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
 //          Inc( Data, bNOP-1 );
-          Inc( result, bNOP );
           end;
 //        else if ( bNOP = 1 ) then
 //          Inc( Data );
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
+          end;
         bNOP := 0;
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
@@ -4969,13 +5111,13 @@ begin
       end
     else if ( StrL_Hex <> nil ) then
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
-        Decoder.Decode( Instruction );
-        bDecode := Decoder.CanDecode;
+        fDecoder.Decode( Instruction );
+        bDecode := fDecoder.CanDecode;
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
           if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
@@ -4991,12 +5133,17 @@ begin
             Inc( Data );
             end;
           StrL_Hex.Add( S );
-          Inc( result, bNOP );
           end
         else if ( bNOP = 1 ) then
           begin
           StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
           Inc( Data );
+          end;
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
           end;
         bNOP := 0;
 
@@ -5014,7 +5161,7 @@ begin
     end;
 end;
 
-function TIced.DecodeCombineNOP( Data : PByte; Size : Cardinal; Count : Cardinal; StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF}; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF} = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; CalcJumpLines : Boolean = True ) : Cardinal;
+function TIced.DecodeCombineNOP( Data : PByte; Size : Cardinal; Count : Cardinal; StrL_Assembly : TStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal;
 const
   DETAILS_BLOCKSIZE = 1000;
   BLOCKSIZE_NOP     = 16;
@@ -5037,7 +5184,7 @@ begin
 //  if ( StrL_Assembly <> nil ) then
 //    StrL_Assembly.Clear;
 
-  Decoder.SetData( Data, Size, CodeOffset, DecoderSettings );
+  fDecoder.SetData( Data, Size, CodeOffset, DecoderSettings );
 
   bNOP := 0;
   {$IFDEF AssemblyTools}
@@ -5045,17 +5192,17 @@ begin
     begin
     if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
+        fDecoder.Decode( Instruction, Details^ );
         Dec( Count );
-        bDecode := Decoder.CanDecode AND ( Count > 0 );
+        bDecode := fDecoder.CanDecode AND ( Count > 0 );
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           if ( bNOP = 0 ) then
             begin
@@ -5081,12 +5228,17 @@ begin
             Inc( Data );
             end;
           StrL_Hex.Add( S );
-          Inc( result, bNOP );
           end
         else if ( bNOP = 1 ) then
           begin
           StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
           Inc( Data );
+          end;
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
           end;
         bNOP := 0;
 
@@ -5108,17 +5260,17 @@ begin
       end
     else if ( StrL_Assembly <> nil ) then
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
+        fDecoder.Decode( Instruction, Details^ );
         Dec( Count );
-        bDecode := Decoder.CanDecode AND ( Count > 0 );
+        bDecode := fDecoder.CanDecode AND ( Count > 0 );
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           if ( bNOP = 0 ) then
             begin
@@ -5137,10 +5289,15 @@ begin
           StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
 //          Inc( Data, bNOP-1 );
-          Inc( result, bNOP );
           end;
 //        else if ( bNOP = 1 ) then
 //          Inc( Data );
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
+          end;
         bNOP := 0;
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
@@ -5152,17 +5309,17 @@ begin
       end
     else if ( StrL_Hex <> nil ) then
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
+        fDecoder.Decode( Instruction, Details^ );
         Dec( Count );
-        bDecode := Decoder.CanDecode AND ( Count > 0 );
+        bDecode := fDecoder.CanDecode AND ( Count > 0 );
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           if ( bNOP = 0 ) then
             Inc( Details^.Count );
@@ -5181,12 +5338,17 @@ begin
             Inc( Data );
             end;
           StrL_Hex.Add( S );
-          Inc( result, bNOP );
           end
         else if ( bNOP = 1 ) then
           begin
           StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
           Inc( Data );
+          end;
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
           end;
         bNOP := 0;
 
@@ -5205,17 +5367,17 @@ begin
       end
     else
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
         if ( Details^.Count >= Length( Details^.Items ) ) then
           SetLength( Details^.Items, Details^.Count+DETAILS_BLOCKSIZE );
 
-        Decoder.Decode( Instruction, Details^ );
+        fDecoder.Decode( Instruction, Details^ );
         Dec( Count );
-        bDecode := Decoder.CanDecode AND ( Count > 0 );
+        bDecode := fDecoder.CanDecode AND ( Count > 0 );
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           if ( bNOP = 0 ) then
             Inc( Details^.Count );
@@ -5228,10 +5390,15 @@ begin
           begin
           Details^.Items[ Details^.Count-1 ].Size := bNOP;
 //          Inc( Data, bNOP-1 );
-          Inc( result, bNOP );
           end;
 //        else if ( bNOP = 1 ) then
 //          Inc( Data );
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
+          end;
         bNOP := 0;
 
         Inc( Details^.Count );
@@ -5250,14 +5417,14 @@ begin
     begin
     if ( StrL_Assembly <> nil ) AND ( StrL_Hex <> nil ) then
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
-        Decoder.Decode( Instruction );
+        fDecoder.Decode( Instruction );
         Dec( Count );
-        bDecode := Decoder.CanDecode AND ( Count > 0 );
+        bDecode := fDecoder.CanDecode AND ( Count > 0 );
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
 
@@ -5282,12 +5449,17 @@ begin
             Inc( Data );
             end;
           StrL_Hex.Add( S );
-          Inc( result, bNOP );
           end
         else if ( bNOP = 1 ) then
           begin
           StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
           Inc( Data );
+          end;
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
           end;
         bNOP := 0;
 
@@ -5307,14 +5479,14 @@ begin
       end
     else if ( StrL_Assembly <> nil ) then
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
-        Decoder.Decode( Instruction );
+        fDecoder.Decode( Instruction );
         Dec( Count );
-        bDecode := Decoder.CanDecode AND ( Count > 0 );
+        bDecode := fDecoder.CanDecode AND ( Count > 0 );
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
 
@@ -5333,10 +5505,15 @@ begin
           StrL_Assembly[ StrL_Assembly.Count-1 ] := StrL_Assembly[ StrL_Assembly.Count-1 ] + ':' + IntToStr( bNOP );
 
 //          Inc( Data, bNOP-1 );
-          Inc( result, bNOP );
           end;
 //        else if ( bNOP = 1 ) then
 //          Inc( Data );
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
+          end;
         bNOP := 0;
 
         Formatter.Format( Instruction, tOutput, Length( tOutput ) );
@@ -5347,14 +5524,14 @@ begin
       end
     else if ( StrL_Hex <> nil ) then
       begin
-      bDecode := Decoder.CanDecode;
+      bDecode := fDecoder.CanDecode;
       while bDecode do
         begin
-        Decoder.Decode( Instruction );
+        fDecoder.Decode( Instruction );
         Dec( Count );
-        bDecode := Decoder.CanDecode AND ( Count > 0 );
+        bDecode := fDecoder.CanDecode AND ( Count > 0 );
 
-        if ( Instruction.code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
+        if ( Instruction.code.Code = Nopd ) AND ( bNOP < BLOCKSIZE_NOP ) then
           begin
           Inc( bNOP );
           if bDecode AND ( bNOP <= BLOCKSIZE_NOP ) then
@@ -5370,12 +5547,17 @@ begin
             Inc( Data );
             end;
           StrL_Hex.Add( S );
-          Inc( result, bNOP );
           end
         else if ( bNOP = 1 ) then
           begin
           StrL_Hex.Add( IntToHex( Data^{$IFNDEF UNICODE}, 2{$ENDIF} ) );
           Inc( Data );
+          end;
+        if ( bNOP > 0 ) then
+          begin
+          Inc( result, bNOP );
+          if NOT bDecode then
+            break;
           end;
         bNOP := 0;
 
@@ -5393,17 +5575,251 @@ begin
     end;
 end;
 
-{$IFDEF AssemblyTools}
-function TIced.DissambleAddress( var Data : TByteInstruction; Address : UInt64; Instruction : PString = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal;
+{$IF Declared( SynUnicode )}
+function TIced.DecodeFromFile( FileName : String; Size : Cardinal; Offset : UInt64; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : Cardinal;
 var
-  StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF};
-  StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF};
+  Assembly,
+  Hex      : TStringList;
+begin
+  if ( StrL_Assembly <> nil ) then
+    Assembly := TStringList.Create
+  else
+    Assembly := nil;
+
+  if ( StrL_Hex <> nil ) then
+    Hex := TStringList.Create
+  else
+    Hex := nil;
+
+  result := DecodeFromFile( FileName, Size, Offset, Assembly, CodeOffset, Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, {$IFDEF AssemblyTools}CalcJumpLines, {$ENDIF}CombineNOP );
+
+  if ( Assembly <> nil ) then
+    begin
+    StrL_Assembly.Text := Assembly.Text;
+    Assembly.free;
+    end;
+  if ( Hex <> nil ) then
+    begin
+    StrL_Hex.Text := Hex.Text;
+    Hex.free;
+    end;
+end;
+
+function TIced.DecodeFromStream( Data : TMemoryStream; Size : Cardinal; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : Cardinal;
+var
+  Assembly,
+  Hex      : TStringList;
+begin
+  if ( StrL_Assembly <> nil ) then
+    Assembly := TStringList.Create
+  else
+    Assembly := nil;
+
+  if ( StrL_Hex <> nil ) then
+    Hex := TStringList.Create
+  else
+    Hex := nil;
+
+  result := DecodeFromStream( Data, Size, Assembly, CodeOffset, Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, {$IFDEF AssemblyTools}CalcJumpLines, {$ENDIF}CombineNOP );
+
+  if ( Assembly <> nil ) then
+    begin
+    StrL_Assembly.Text := Assembly.Text;
+    Assembly.free;
+    end;
+  if ( Hex <> nil ) then
+    begin
+    StrL_Hex.Text := Hex.Text;
+    Hex.free;
+    end;
+end;
+
+function TIced.Decode( Data : PByte; Size : Cardinal; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal;
+var
+  Assembly,
+  Hex      : TStringList;
+begin
+  if ( StrL_Assembly <> nil ) then
+    Assembly := TStringList.Create
+  else
+    Assembly := nil;
+
+  if ( StrL_Hex <> nil ) then
+    Hex := TStringList.Create
+  else
+    Hex := nil;
+
+  result := Decode( Data, Size, Assembly, CodeOffset, Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings{$IFDEF AssemblyTools}, CalcJumpLines{$ENDIF} );
+
+  if ( Assembly <> nil ) then
+    begin
+    StrL_Assembly.Text := Assembly.Text;
+    Assembly.free;
+    end;
+  if ( Hex <> nil ) then
+    begin
+    StrL_Hex.Text := Hex.Text;
+    Hex.free;
+    end;
+end;
+
+function TIced.Decode( Data : PByte; Size : Cardinal; Count : Cardinal; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal;
+var
+  Assembly,
+  Hex      : TStringList;
+begin
+  if ( StrL_Assembly <> nil ) then
+    Assembly := TStringList.Create
+  else
+    Assembly := nil;
+
+  if ( StrL_Hex <> nil ) then
+    Hex := TStringList.Create
+  else
+    Hex := nil;
+
+  result := Decode( Data, Size, Assembly, CodeOffset, Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings{$IFDEF AssemblyTools}, CalcJumpLines{$ENDIF} );
+
+  if ( Assembly <> nil ) then
+    begin
+    StrL_Assembly.Text := Assembly.Text;
+    Assembly.free;
+    end;
+  if ( Hex <> nil ) then
+    begin
+    StrL_Hex.Text := Hex.Text;
+    Hex.free;
+    end;
+end;
+
+function TIced.Decode( Data : string; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : boolean;
+var
+  Assembly,
+  Hex      : TStringList;
+begin
+  if ( StrL_Assembly <> nil ) then
+    Assembly := TStringList.Create
+  else
+    Assembly := nil;
+
+  if ( StrL_Hex <> nil ) then
+    Hex := TStringList.Create
+  else
+    Hex := nil;
+
+  result := Decode( Data, Assembly, CodeOffset, Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, {$IFDEF AssemblyTools}CalcJumpLines, {$ENDIF}CombineNOP );
+
+  if ( Assembly <> nil ) then
+    begin
+    StrL_Assembly.Text := Assembly.Text;
+    Assembly.free;
+    end;
+  if ( Hex <> nil ) then
+    begin
+    StrL_Hex.Text := Hex.Text;
+    Hex.free;
+    end;
+end;
+
+function TIced.Decode( Data : TStrings; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE; {$IFDEF AssemblyTools}CalcJumpLines : Boolean = True;{$ENDIF} CombineNOP : boolean = False ) : boolean;
+var
+  Assembly,
+  Hex      : TStringList;
+begin
+  if ( StrL_Assembly <> nil ) then
+    Assembly := TStringList.Create
+  else
+    Assembly := nil;
+
+  if ( StrL_Hex <> nil ) then
+    Hex := TStringList.Create
+  else
+    Hex := nil;
+
+  result := Decode( Data, Assembly, CodeOffset, Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings, {$IFDEF AssemblyTools}CalcJumpLines, {$ENDIF}CombineNOP );
+
+  if ( Assembly <> nil ) then
+    begin
+    StrL_Assembly.Text := Assembly.Text;
+    Assembly.free;
+    end;
+  if ( Hex <> nil ) then
+    begin
+    StrL_Hex.Text := Hex.Text;
+    Hex.free;
+    end;
+end;
+
+function TIced.DecodeCombineNOP( Data : PByte; Size : Cardinal; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal;
+var
+  Assembly,
+  Hex      : TStringList;
+begin
+  if ( StrL_Assembly <> nil ) then
+    Assembly := TStringList.Create
+  else
+    Assembly := nil;
+
+  if ( StrL_Hex <> nil ) then
+    Hex := TStringList.Create
+  else
+    Hex := nil;
+
+  result := DecodeCombineNOP( Data, Size, Assembly, CodeOffset, Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings{$IFDEF AssemblyTools}, CalcJumpLines{$ENDIF} );
+
+  if ( Assembly <> nil ) then
+    begin
+    StrL_Assembly.Text := Assembly.Text;
+    Assembly.free;
+    end;
+  if ( Hex <> nil ) then
+    begin
+    StrL_Hex.Text := Hex.Text;
+    Hex.free;
+    end;
+end;
+
+function TIced.DecodeCombineNOP( Data : PByte; Size : Cardinal; Count : Cardinal; StrL_Assembly : TUnicodeStrings; CodeOffset : UInt64 = UInt64( 0 ); StrL_Hex : TUnicodeStrings = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE{$IFDEF AssemblyTools}; CalcJumpLines : Boolean = True{$ENDIF} ) : Cardinal;
+var
+  Assembly,
+  Hex      : TStringList;
+begin
+  if ( StrL_Assembly <> nil ) then
+    Assembly := TStringList.Create
+  else
+    Assembly := nil;
+
+  if ( StrL_Hex <> nil ) then
+    Hex := TStringList.Create
+  else
+    Hex := nil;
+
+  result := DecodeCombineNOP( Data, Size, Count, Assembly, CodeOffset, Hex, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings{$IFDEF AssemblyTools}, CalcJumpLines{$ENDIF} );
+
+  if ( Assembly <> nil ) then
+    begin
+    StrL_Assembly.Text := Assembly.Text;
+    Assembly.free;
+    end;
+  if ( Hex <> nil ) then
+    begin
+    StrL_Hex.Text := Hex.Text;
+    Hex.free;
+    end;
+end;
+{$IFEND UNICODE}
+
+{$IFDEF AssemblyTools}
+function TIced.DecodeAddress( var Data : TByteInstruction; Address : UInt64; Instruction : PString = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal;
+var
+  StrL_Assembly : TStrings;
+  StrL_Hex : TStrings;
   {$IFDEF AssemblyTools}
   Details : TIcedDetails;
   {$ENDIF AssemblyTools}
 begin
-  StrL_Assembly := {$IFNDEF UNICODE}TUnicodeStringList{$ELSE}TStringList{$ENDIF}.Create;
-  StrL_Hex := {$IFNDEF UNICODE}TUnicodeStringList{$ELSE}TStringList{$ENDIF}.Create;
+  StrL_Assembly := TStringList.Create;
+  StrL_Hex := TStringList.Create;
   {$IFDEF AssemblyTools}
   FillChar( Details, SizeOf( Details ), 0 );
   {$ENDIF AssemblyTools}
@@ -5436,16 +5852,16 @@ begin
   {$ENDIF AssemblyTools}
 end;
 
-function TIced.DissambleAddress( Data : PByte; Size : Cardinal; Address : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal;
+function TIced.DecodeAddress( Data : PByte; Size : Cardinal; Address : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; {$IFDEF AssemblyTools}Detail : pIcedDetail = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal;
 var
-  StrL_Assembly : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF};
-  StrL_Hex : {$IFNDEF UNICODE}TUnicodeStrings{$ELSE}TStrings{$ENDIF};
+  StrL_Assembly : TStrings;
+  StrL_Hex : TStrings;
   {$IFDEF AssemblyTools}
   Details : TIcedDetails;
   {$ENDIF AssemblyTools}
 begin
-  StrL_Assembly := {$IFNDEF UNICODE}TUnicodeStringList{$ELSE}TStringList{$ENDIF}.Create;
-  StrL_Hex := {$IFNDEF UNICODE}TUnicodeStringList{$ELSE}TStringList{$ENDIF}.Create;
+  StrL_Assembly := TStringList.Create;
+  StrL_Hex := TStringList.Create;
   {$IFDEF AssemblyTools}
   FillChar( Details, SizeOf( Details ), 0 );
   {$ENDIF AssemblyTools}
@@ -5479,7 +5895,79 @@ begin
 end;
 {$ENDIF AssemblyTools}
 
-function TIced.PointerScan( Code : PByte; Size : Cardinal; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
+function TIced.Compare( Data : PByte; Size : Cardinal; Offset : UInt64; DataCompare : PByte; SizeCompare : Cardinal; OffsetCompare : UInt64; Count : Word; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyCompareMode = acmCenter ) : Cardinal;
+var
+  Decoder2 : TIcedDecoder;
+  Inst1    : TInstruction;
+  Inst2    : TInstruction;
+begin
+  result := 0;
+  if ( Data = nil ) OR ( Size = 0 ) OR ( DataCompare = nil ) OR ( SizeCompare = 0 ) OR ( Count = 0 ) then
+    Exit;
+
+  Decoder2 := TIcedDecoder.Create( fDecoder.Bitness );
+
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Offset := Offset-CodeOffset;
+  OffsetCompare := OffsetCompare-CodeOffset;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Size := Size-( Offset-CodeOffset );
+  SizeCompare := SizeCompare-( OffsetCompare-CodeOffset );
+
+  case Mode of // MS FindPreviousInstruction
+    acmCenter   : begin
+//                  if ( FindPreviousInstructionCount( Data, Size, 0{CodeOffset}, Offset, Offset, Count div 2 ) = 0 ) then
+//                    Exit;
+//                  if ( FindPreviousInstructionCount( DataCompare, SizeCompare, 0{CodeOffset}, OffsetCompare, OffsetCompare, Count div 2 ) = 0 ) then
+//                    Exit;
+                  end;
+    acmBackward : begin
+//                  if ( FindPreviousInstructionCount( Data, Size, 0{CodeOffset}, Offset, Offset, Count ) = 0 ) then
+//                    Exit;
+//                  if ( FindPreviousInstructionCount( DataCompare, SizeCompare, 0{CodeOffset}, OffsetCompare, OffsetCompare, Count ) = 0 ) then
+//                    Exit;
+                  end;
+  end;
+
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  fDecoder.SetData( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data ) + Offset ), Size, CodeOffset );
+  Decoder2.SetData( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( DataCompare ) + OffsetCompare ), SizeCompare, CodeOffset );
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+
+  while ( Count > 0 ) AND ( fDecoder.CanDecode ) AND ( Decoder2.CanDecode ) do
+    begin
+    fDecoder.Decode( Inst1 );
+    Decoder2.Decode( Inst2 );
+
+    if Inst1.IsEqual( Inst2 ) then
+      Inc( result );
+
+//    Inc( Data, Inst1.len );
+//    Inc( DataCompare, Inst2.len );
+//    {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+//    Inc( CodeOffset, Inst1.len );
+//    {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    Dec( Count );
+    end;
+  Decoder2.free;
+end;
+
+function TIced.Compare( Data : TMemoryStream; Offset : UInt64; DataCompare : TMemoryStream; OffsetCompare : UInt64; Count : Word; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyCompareMode = acmCenter ) : Cardinal;
+begin
+  if ( Data = nil ) OR ( DataCompare = nil ) then
+    begin
+    result := 0;
+    Exit;
+    end;
+
+  result := Compare( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ),
+                     Data.Size-Data.Position, Offset,
+                     {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( DataCompare.Memory )+DataCompare.Position ),
+                     DataCompare.Size-DataCompare.Position, OffsetCompare,
+                     Count, CodeOffset, Mode );
+end;
+
+function TIced.PointerScan( Data : PByte; Size : Cardinal; var results : tIcedPointerScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
 const
   BLOCK_SIZE   = 100000;
   UPDATE_PERCENT = 0.01;
@@ -5498,12 +5986,12 @@ var
 begin
   result := 0;
   SetLength( results, 0 );
-  if ( Code = nil ) then
+  if ( Data = nil ) then
     Exit;
   if ( Size = 0 ) then
     Exit;
 
-  Decoder.SetData( Code, Size, CodeOffset );
+  fDecoder.SetData( Data, Size, CodeOffset );
 
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   done := 0;
@@ -5522,11 +6010,11 @@ begin
       Upd := UpdBytes;
       end;
 
-    Decoder.Decode( Instruction );
+    fDecoder.Decode( Instruction );
 
     if Instruction.IsValid then
       begin
-      Decoder.GetConstantOffsets( Instruction, Offsets );
+      fDecoder.GetConstantOffsets( Instruction, Offsets );
 
       if ( Offsets.displacement_size > 0 ) OR ( Offsets.immediate_size > 0 ) OR ( Offsets.immediate_size2 > 0 ) then
         begin
@@ -5535,10 +6023,10 @@ begin
         {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
 
         case Offsets.displacement_size of
-          1 : Disp := PShortInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
-          2 : Disp := PSmallInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
-          4 : Disp := PInteger( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
-          8 : Disp := PInt64( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          1 : Disp := PShortInt( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          2 : Disp := PSmallInt( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          4 : Disp := PInteger( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          8 : Disp := PInt64( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
         else
           Disp := 0;
         end;
@@ -5549,10 +6037,10 @@ begin
           Dec( Off, Abs( Disp ) );
 
         case Offsets.immediate_size of
-          1 : Disp := PShortInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
-          2 : Disp := PSmallInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
-          4 : Disp := PInteger( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
-          8 : Disp := PInt64( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          1 : Disp := PShortInt( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          2 : Disp := PSmallInt( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          4 : Disp := PInteger( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          8 : Disp := PInt64( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
         else
           Disp := 0;
         end;
@@ -5563,10 +6051,10 @@ begin
           Dec( Off, Abs( Disp ) );
 
         case Offsets.immediate_size2 of
-          1 : Disp := PShortInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
-          2 : Disp := PSmallInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
-          4 : Disp := PInteger( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
-          8 : Disp := PInt64( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          1 : Disp := PShortInt( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          2 : Disp := PSmallInt( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          4 : Disp := PInteger( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          8 : Disp := PInt64( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
         else
           Disp := 0;
         end;
@@ -5608,7 +6096,7 @@ begin
 
     {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
     done := done + Instruction.len;
-    Inc( Code, Instruction.len );
+    Inc( Data, Instruction.len );
 //    Inc( CodeOffset, Instruction.len );
     if ( Upd > Instruction.len )  then
       Dec( Upd, Instruction.len )
@@ -5630,7 +6118,7 @@ begin
   result := PointerScan( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Data.Size-Data.Position, Results, CodeOffset, ProcessEvent );
 end;
 
-function TIced.ReferenceScan( Code : PByte; Size : Cardinal; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
+function TIced.ReferenceScan( Data : PByte; Size : Cardinal; Reference : UInt64; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
 const
   BLOCK_SIZE     = 10000;
   UPDATE_PERCENT = 0.25;
@@ -5647,12 +6135,12 @@ var
 begin
   result := 0;
   SetLength( results, 0 );
-  if ( Code = nil ) then
+  if ( Data = nil ) then
     Exit;
   if ( Size = 0 ) then
     Exit;
 
-  Decoder.SetData( Code, Size, CodeOffset );
+  fDecoder.SetData( Data, Size, CodeOffset );
 
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   done := 0;
@@ -5671,11 +6159,11 @@ begin
       Upd := UpdBytes;
       end;
 
-    Decoder.Decode( Instruction );
+    fDecoder.Decode( Instruction );
 
     if Instruction.IsValid then
       begin
-      Decoder.GetConstantOffsets( Instruction, Offsets );
+      fDecoder.GetConstantOffsets( Instruction, Offsets );
 
       if ( Offsets.displacement_size > 0 ) OR ( Offsets.immediate_size > 0 ) OR ( Offsets.immediate_size2 > 0 ) then
         begin
@@ -5684,10 +6172,10 @@ begin
         {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
 
         case Offsets.displacement_size of
-          1 : Disp := PShortInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
-          2 : Disp := PSmallInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
-          4 : Disp := PInteger( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
-          8 : Disp := PInt64( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          1 : Disp := PShortInt( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          2 : Disp := PSmallInt( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          4 : Disp := PInteger( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
+          8 : Disp := PInt64( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.displacement_offset )^;
         else
           Disp := 0;
         end;
@@ -5698,10 +6186,10 @@ begin
           Dec( Off, Abs( Disp ) );
 
         case Offsets.immediate_size of
-          1 : Disp := PShortInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
-          2 : Disp := PSmallInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
-          4 : Disp := PInteger( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
-          8 : Disp := PInt64( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          1 : Disp := PShortInt( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          2 : Disp := PSmallInt( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          4 : Disp := PInteger( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
+          8 : Disp := PInt64( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset )^;
         else
           Disp := 0;
         end;
@@ -5712,10 +6200,10 @@ begin
           Dec( Off, Abs( Disp ) );
 
         case Offsets.immediate_size2 of
-          1 : Disp := PShortInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
-          2 : Disp := PSmallInt( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
-          4 : Disp := PInteger( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
-          8 : Disp := PInt64( PAnsiChar( Code{Decoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          1 : Disp := PShortInt( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          2 : Disp := PSmallInt( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          4 : Disp := PInteger( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
+          8 : Disp := PInt64( PAnsiChar( Data{fDecoder.InstructionFirstByte} ) + Offsets.immediate_offset2 )^;
         else
           Disp := 0;
         end;
@@ -5740,7 +6228,7 @@ begin
 
     {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
     done := done + Instruction.len;
-    Inc( Code, Instruction.len );
+    Inc( Data, Instruction.len );
 //    Inc( CodeOffset, Instruction.len );
     if ( Upd > Instruction.len )  then
       Dec( Upd, Instruction.len )
@@ -5762,7 +6250,7 @@ begin
   result := ReferenceScan( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Data.Size-Data.Position, Reference, Results, CodeOffset, ProcessEvent );
 end;
 
-function TIced.AssemblyScan( Code : PByte; Size : Cardinal; Assembly : String; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
+function TIced.AssemblyScan( Data : PByte; Size : Cardinal; Assembly : String; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
   function IsWm( Text, MatchText: String; caseSensitive : boolean = false ): Boolean;
   var
     StringPtr: PChar;
@@ -5902,14 +6390,16 @@ var
 begin
   result := 0;
   SetLength( results, 0 );
-  if ( Code = nil ) then
+  if ( Data = nil ) then
     Exit;
   if ( Size = 0 ) then
     Exit;
   if ( Assembly = '' ) then
     Exit;
+  if ( Mode = asmSimiliar ) then
+    Exit;
 
-  Decoder.SetData( Code, Size, CodeOffset );
+  fDecoder.SetData( Data, Size, CodeOffset );
 
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   done := 0;
@@ -5944,7 +6434,9 @@ begin
         S := StringReplace( S, '  ', ' ', [ rfReplaceAll ] );
         end;
 
-      if ( Mode <> asmRegExp ) then 
+      {$IF Declared( asmRegExp )}
+      if ( Mode <> asmRegExp ) then
+      {$IFEND}      
         begin
         if fFormatter.fOptions.SpaceAfterOperandSeparator then
           S := StringReplace( S, ',', ', ', [ rfReplaceAll ] )
@@ -5962,7 +6454,7 @@ begin
           S := StringReplace( S, ' ]', ']', [ rfReplaceAll ] );
           end;
           
-        if fFormatter.fOptions.SpaceBetweenMemoryAddOperators then        
+        if fFormatter.fOptions.SpaceBetweenMemoryAddOperators then
           begin
           S := StringReplace( S, '+', ' + ', [ rfReplaceAll ] );
           S := StringReplace( S, '-', ' - ', [ rfReplaceAll ] );
@@ -6021,7 +6513,7 @@ begin
       Upd := UpdBytes;
       end;
 
-    Decoder.Decode( Instruction );
+    fDecoder.Decode( Instruction );
 
     if Instruction.IsValid then
       begin
@@ -6128,6 +6620,145 @@ begin
   result := AssemblyScan( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Data.Size-Data.Position, Assembly, Results, CodeOffset, Mode, ProcessEvent );
 end;
 
+function TIced.AssemblyScan( Data : PByte; Size : Cardinal; Assembly : PInstruction; AssemblyCount : Cardinal; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
+type
+  TInstructionArrayStatic = Array [ 0..0 ] of TInstruction;
+  PInstructionArrayStatic = ^TInstructionArrayStatic;
+const
+  BLOCK_SIZE   = 100000;
+  UPDATE_PERCENT = 0.25;
+var
+  aAssembly   : PInstructionArrayStatic absolute Assembly;
+  Instruction : TInstruction;
+  done        : UInt64;
+  Upd         : Cardinal;
+  UpdBytes    : Cardinal;
+  i           : Integer;
+  b           : Boolean;
+  Offset      : UInt64;
+  sInstruction: String;
+
+  Cancel      : Boolean;
+begin
+  result := 0;
+  SetLength( results, 0 );
+  if ( Data = nil ) then
+    Exit;
+  if ( Size = 0 ) then
+    Exit;
+  if ( Assembly = nil ) OR ( AssemblyCount = 0 ) then
+    Exit;
+  if NOT ( Mode in [ asmEqual, asmSimiliar ] ) then
+    Exit;
+
+  fDecoder.SetData( Data, Size, CodeOffset );
+
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  done := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Cancel := False;
+
+  Upd := 0;
+  UpdBytes := Trunc( size * UPDATE_PERCENT );
+  i := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Offset := Instruction.RIP;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  while ( done < size ) do
+    begin
+    if ( @ProcessEvent <> nil ) AND ( Upd = 0 ) then
+      begin
+      ProcessEvent( done, size, Cancel );
+      if Cancel then
+        Break;
+      Upd := UpdBytes;
+      end;
+
+    fDecoder.Decode( Instruction );
+
+    if Instruction.IsValid then
+      begin
+      case Mode of
+        asmEqual    : b := Instruction.IsEqual( {$R-}aAssembly^[ i ]{$R+} );
+        asmSimiliar : b := Instruction.IsSimiliar( {$R-}aAssembly^[ i ]{$R+} );
+      else
+        b := False;
+      end;
+
+      if b then
+        begin
+        if ( i = 0 ) then
+          {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+          Offset := Instruction.RIP;
+          {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+        sInstruction := sInstruction + String( Formatter.FormatToString( Instruction ) ) + #13#10;
+        Inc( i );
+
+        if ( i >= AssemblyCount ) then
+          begin
+          if ( result >= Length( results ) ) then
+            SetLength( results, Length( results )+BLOCK_SIZE );
+          {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+          Results[ result ].Origin      := Offset;
+          Results[ result ].Instruction := Copy( sInstruction, 1, Length( sInstruction )-2 );
+          {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+          Inc( result );
+
+          i := 0;
+          sInstruction := '';
+          end;
+        end
+      else
+        begin
+        i := 0;
+        sInstruction := '';
+        end;
+      end;
+
+    {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    done := done + Instruction.len;
+//    Inc( Data, Instruction.len );
+//    Inc( CodeOffset, Instruction.len );
+    if ( Upd > Instruction.len )  then
+      Dec( Upd, Instruction.len )
+    else
+      Upd := 0;
+    {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    end;
+
+  SetLength( results, result );
+end;
+
+function TIced.AssemblyScan( Data : TMemoryStream; Assembly : PInstruction; AssemblyCount : Cardinal; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
+begin
+  if ( Data = nil ) then
+    begin
+    result := 0;
+    Exit;
+    end;
+  result := AssemblyScan( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Data.Size-Data.Position, Assembly, AssemblyCount, Results, CodeOffset, Mode, ProcessEvent );
+end;
+
+function TIced.AssemblyScan( Data : PByte; Size : Cardinal; var Assembly : TInstructionArray; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
+begin
+  if ( Length( Assembly ) = 0 ) then
+    begin
+    result := 0;
+    Exit;
+    end;
+  result := AssemblyScan( Data, Size, @Assembly[ 0 ], Length( Assembly ), Results, CodeOffset, Mode, ProcessEvent );
+end;
+
+function TIced.AssemblyScan( Data : TMemoryStream; var Assembly : TInstructionArray; var results : tIcedReferenceScanResults; CodeOffset : UInt64 = UInt64( 0 ); Mode : tIcedAssemblyScanMode = asmEqual; ProcessEvent : tIcedPointerScanProcessEvent = nil ) : Cardinal;
+begin
+  if ( Data = nil ) OR ( Length( Assembly ) = 0 ) then
+    begin
+    result := 0;
+    Exit;
+    end;
+  result := AssemblyScan( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Data.Size-Data.Position, @Assembly[ 0 ], Length( Assembly ), Results, CodeOffset, Mode, ProcessEvent );
+end;
+
 function TIced.FindInstruction( Data : PByte; Size : Cardinal; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal;
 const
   BLOCKSIZE = 20;
@@ -6148,25 +6779,25 @@ begin
   if ( CodeOffset > Offset ) then
     Exit;
 
-  i := Offset-CodeOffset;
-  if ( i > BLOCKSIZE )  then
+  Offset := Offset-CodeOffset;
+  if ( Offset > BLOCKSIZE )  then
     begin
-    i := i-BLOCKSIZE;
+    i := Offset-BLOCKSIZE;
     Inc( Data, i );
     end
   else
     i := 0;
 
-  Decoder.SetData( Data, Size-i, CodeOffset+i, DecoderSettings );
+  fDecoder.SetData( Data, Size-i, {CodeOffset+}i, DecoderSettings );
   {$IFDEF AssemblyTools}
   if ( Details <> nil ) then
     begin
-    while Decoder.CanDecode do
+    while fDecoder.CanDecode do
       begin
-      Decoder.Decode( Instruction, Details^ );
+      fDecoder.Decode( Instruction, Details^ );
       if ( Instruction.next_rip >= Offset ) then
         begin
-        result := Instruction.next_rip-CodeOffset;
+        result := Instruction.next_rip;
         Break;
         end;
       end;
@@ -6174,35 +6805,386 @@ begin
   else
   {$ENDIF AssemblyTools}
     begin
-    begin
-    while Decoder.CanDecode do
+    while fDecoder.CanDecode do
       begin
-      Decoder.Decode( Instruction );
+      fDecoder.Decode( Instruction );
       if ( Instruction.next_rip >= Offset ) then
         begin
-        result := Instruction.next_rip-CodeOffset;
+        result := Instruction.next_rip;
         Break;
         end;
       end;
-    end;
     end;
   {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
 end;
 
 function TIced.FindInstruction( Data : TMemoryStream; Offset : UInt64; CodeOffset : UInt64 = UInt64( 0 ); {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal;
 begin
-  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   if ( Data = nil ) then
     begin
     result := 0;
     Exit;
     end;
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   result := FindInstruction( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Data.Size-Data.Position, Offset, CodeOffset, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings );
-  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118  
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
 end;
+
+function TIced.FindNextInstruction( Data : TMemoryStream; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; InstructionCount : Word = 1; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal;
+begin
+  if ( Data = nil ) then
+    begin
+    result := 0;
+    Exit;
+    end;
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  result := FindNextInstruction( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data.Memory )+Data.Position ), Data.Size-Data.Position, Address, Offset, CodeOffset, InstructionCount, InstructionBytes, Instruction, {$IFDEF AssemblyTools}Details,{$ENDIF} DecoderSettings );
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+end;
+
+function TIced.FindNextInstruction( Data : PByte; Size : Cardinal; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; InstructionCount : Word = 1; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; {$IFDEF AssemblyTools}Details : pIcedDetails = nil;{$ENDIF} DecoderSettings : Cardinal = doNONE ) : Cardinal;
+var
+  Inst : TInstruction;
+begin
+  result := 0;
+  if ( self = nil ) then
+    Exit;
+
+  if ( Data = nil ) OR ( Size = 0 ) then
+    Exit;
+
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  if ( Address > CodeOffset+Size ) then
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118  
+    Exit;
+
+  if ( CodeOffset > Address ) then
+    Exit;
+
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  fDecoder.SetData( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data ) + CodeOffset ), Size-CodeOffset, 0{Address}, DecoderSettings );
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+
+  Inc( InstructionCount );
+  {$IFDEF AssemblyTools}
+  if ( Details <> nil ) then
+    begin
+    while fDecoder.CanDecode AND ( InstructionCount > 0 ) do
+      begin
+      fDecoder.Decode( Inst, Details^ );
+      Dec( InstructionCount );
+      end;
+    end
+  else
+  {$ENDIF AssemblyTools}
+    begin
+    while fDecoder.CanDecode AND ( InstructionCount > 0 ) do
+      begin
+      fDecoder.Decode( Inst );
+      Dec( InstructionCount );
+      end;
+    end;
+
+  if ( InstructionCount = 0 ) then
+    begin
+    {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    Offset := Inst.RIP+Address;
+    {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    result := Inst.len;
+
+    if ( InstructionBytes <> nil ) then
+      Move( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Data ) + result )^, InstructionBytes^[ 0 ], Inst.len );
+    if ( Instruction <> nil ) then
+      Instruction^ := String( Formatter.FormatToString( Inst ) );
+    end;
+end;
+
+(*
+function TIced.FindPreviousInstructionCount( Code : TMemoryStream; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; InstructionCount : Word = 1; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : px86AssemblyDetail = nil ) : Cardinal;
+begin
+  result := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Offset := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  if ( InstructionBytes <> nil ) then
+    FillChar( InstructionBytes^, SizeOf( InstructionBytes^ ), 0 );
+  if ( Instruction <> nil ) then
+    Instruction^ := '';
+  if ( Detail <> nil ) then
+    FillChar( Detail^, SizeOf( Detail^ ), 0 );
+  if ( self = nil ) then
+    Exit;
+  if ( Code = nil ) then
+    Exit;
+  result := FindPreviousInstructionCount( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Code.Memory )+Code.Position ), Code.Size-Code.Position, CodeOffset, Address, Offset, InstructionCount, InstructionBytes, Instruction, Detail );
+end;
+
+function TIced.FindPreviousInstructionCount( Code : PByte; Size : Cardinal; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; InstructionCount : Word = 1; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : px86AssemblyDetail = nil ) : Cardinal;
+var
+  i, j     : Integer;
+  StrL_Out : TStringList;
+  CurInst  : String;
+  tDetails : tx86AssemblyDetails;
+  B        : PByte;
+begin
+  result := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Offset := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  if ( InstructionBytes <> nil ) then
+    FillChar( InstructionBytes^, SizeOf( InstructionBytes^ ), 0 );
+  if ( Instruction <> nil ) then
+    Instruction^ := '';
+  if ( Detail <> nil ) then
+    FillChar( Detail^, SizeOf( Detail^ ), 0 );
+  if ( self = nil ) then
+    Exit;
+  if ( Code = nil ) then
+    Exit;
+  if ( InstructionCount = 0 ) then
+    Exit;
+  if ( Size < ( InstructionCount+1 )*MAX_INSTRUCTION_LEN_ ) then
+    Exit;
+
+  StrL_Out := TStringList.Create;
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  if ( Execute( Pointer( {$IF CompilerVersion < 23}PAnsiChar{$ELSE}PByte{$IFEND}( Code ) + CodeOffset ), MAX_INSTRUCTION_LEN_, StrL_Out, Address, nil, nil ) > 0 ) then
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    CurInst := StrL_Out[ 0 ]
+  else
+    begin
+    StrL_Out.Free;
+    Exit;
+    end;
+
+  Code := Pointer( {$IF CompilerVersion < 23}PAnsiChar{$ELSE}PByte{$IFEND}( Code ) + CodeOffset - InstructionCount*MAX_INSTRUCTION_LEN_ );
+  for i := 0 to MAX_INSTRUCTION_LEN_-1 do
+    begin
+    if ( result > 0 ) then
+      Break;
+    StrL_Out.Clear;
+    FillChar( tDetails, SizeOf( tDetails ), 0 );
+
+    {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    if ( Execute( Code, ( InstructionCount+1 )*MAX_INSTRUCTION_LEN_, StrL_Out, Address-( Cardinal( InstructionCount*MAX_INSTRUCTION_LEN_-i ) ), nil, @tDetails ) > 0 ) then
+    {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+      begin
+      for j := InstructionCount to StrL_Out.Count-1 do
+        begin
+        if ( tDetails.Items[ j ].Offset = Address ) AND ( StrL_Out[ j ] = CurInst ) AND ( StrL_Out[ j-InstructionCount ] <> 'INVALID' ) then
+          begin
+          {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+          Offset := tDetails.Items[ j-InstructionCount ].Offset;
+          result := tDetails.Items[ j ].Offset;
+          result := result-Offset;
+          {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+          if ( InstructionBytes <> nil ) then
+            begin
+            B := Code;
+            {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+            Inc( B, Offset - Address );
+            {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+            CopyMemory( InstructionBytes, B, tDetails.Items[ j-InstructionCount ].Size );
+            end;
+          if ( Instruction <> nil ) then
+            Instruction^ := StrL_Out[ j-InstructionCount ];
+          if ( Detail <> nil ) then
+            CopyMemory( Detail, @tDetails.Items[ j-InstructionCount ], SizeOf( tx86AssemblyDetail ) );
+          Break;
+          end;
+        end;
+      end;
+    Inc( Code );
+    end;
+  SetLength( tDetails.Items, 0 );
+  SetLength( tDetails.JumpTargets, 0 );
+  StrL_Out.free;
+end;
+
+function TIced.FindPreviousInstruction( Code : TMemoryStream; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; DesiredInstructionOffset : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : pIcedDetail = nil ) : Cardinal;
+begin
+  result := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Offset := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  if ( InstructionBytes <> nil ) then
+    FillChar( InstructionBytes^, SizeOf( InstructionBytes^ ), 0 );
+  if ( Instruction <> nil ) then
+    Instruction^ := '';
+  if ( Detail <> nil ) then
+    FillChar( Detail^, SizeOf( Detail^ ), 0 );
+  if ( self = nil ) then
+    Exit;
+  if ( Code = nil ) then
+    Exit;
+  result := FindPreviousInstruction( {$IF CompilerVersion < 23}PByte( PAnsiChar{$ELSE}( PByte{$IFEND}( Code.Memory )+Code.Position ), Code.Size-Code.Position, CodeOffset, Address, Offset, DesiredInstructionOffset, InstructionBytes, Instruction, Detail );
+end;
+
+function TIced.FindPreviousInstruction( Code : PByte; Size : Cardinal; CodeOffset : UInt64; Address : UInt64; var Offset : UInt64; DesiredInstructionOffset : UInt64; InstructionBytes : pByteInstruction = nil; Instruction : PString = nil; Detail : pIcedDetail = nil ) : Cardinal;
+var
+  i, j, k  : Integer;
+  StrL_Out : TStringList;
+  CurInst  : String;
+  tDetails : TIcedDetails;
+  bOK      : Boolean;
+begin
+  result := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Offset := 0;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  if ( InstructionBytes <> nil ) then
+    FillChar( InstructionBytes^, SizeOf( InstructionBytes^ ), 0 );
+  if ( Instruction <> nil ) then
+    Instruction^ := '';
+  if ( Detail <> nil ) then
+    FillChar( Detail^, SizeOf( Detail^ ), 0 );
+  if ( self = nil ) then
+    Exit;
+  if ( Code = nil ) then
+    Exit;
+//  if ( Size < ( InstructionCount+1 )*MAX_INSTRUCTION_LEN_ ) then
+//    Exit;
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  if ( CodeOffset < MAX_INSTRUCTION_LEN_ ) then
+    Exit;
+  if ( DesiredInstructionOffset >= Address ) OR ( DesiredInstructionOffset-MAX_INSTRUCTION_LEN_ < Address-CodeOffset ) then
+    Exit;
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+
+  StrL_Out := TStringList.Create;
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  if ( Execute( Pointer( {$IF CompilerVersion < 23}PAnsiChar{$ELSE}PByte{$IFEND}( Code ) + CodeOffset ), MAX_INSTRUCTION_LEN_, StrL_Out, Address, nil, nil ) > 0 ) then
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    CurInst := StrL_Out[ 0 ]
+  else
+    begin
+    StrL_Out.Free;
+    Exit;
+    end;
+
+  k := DesiredInstructionOffset-( Address-CodeOffset )-MAX_INSTRUCTION_LEN_;
+  for i := k to k+MAX_INSTRUCTION_LEN_-1 do
+    begin
+    StrL_Out.Clear;
+    SetLength( tDetails.Items, 0 );
+    SetLength( tDetails.JumpTargets, 0 );
+    FillChar( tDetails, SizeOf( tDetails ), 0 );
+    {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+    if ( Execute( Pointer( {$IF CompilerVersion < 23}PAnsiChar{$ELSE}PByte{$IFEND}( Code ) + i ), Address-DesiredInstructionOffset+MAX_INSTRUCTION_LEN_, StrL_Out, Address-CodeOffset+Cardinal( i ), nil, @tDetails ) > 0 ) then
+    {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+      begin
+      bOK := False;
+      k := StrL_Out.Count;
+      for j := 0 to StrL_Out.Count-1 do
+        begin
+        if ( j > 0 ) AND ( StrL_Out[ j ] = 'INVALID' ) then
+          begin
+          bOK := False;
+          Break;
+          end
+        else if ( j > 0 ) AND ( tDetails.Items[ j ].Offset = Address ) AND ( StrL_Out[ j ] = CurInst ) AND ( StrL_Out[ j-1 ] <> 'INVALID' ) then
+          begin
+          bOK := True;
+          k := j;
+          Break;
+          end;
+        end;
+      if NOT bOK then
+        Continue;
+
+      for j := k downTo 1 do
+        begin
+        if ( DesiredInstructionOffset > tDetails.Items[ j ].Offset ) then
+          Continue;
+        {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+        if ( Offset = 0 ) OR ( ABS( tDetails.Items[ j ].Offset - DesiredInstructionOffset ) < ABS( Offset-DesiredInstructionOffset ) ) then
+          begin
+          Offset := tDetails.Items[ j ].Offset;
+          result := Address-Offset;
+          k      := j;
+          end;
+        {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
+        end;
+
+      if ( InstructionBytes <> nil ) then
+        CopyMemory( InstructionBytes, Pointer( {$IF CompilerVersion < 23}PAnsiChar{$ELSE}PByte{$IFEND}( Code ) + CodeOffset - result ), tDetails.Items[ k ].Size );
+
+      if ( Instruction <> nil ) then
+        Instruction^ := StrL_Out[ k ];
+      if ( Detail <> nil ) then
+        CopyMemory( Detail, @tDetails.Items[ k ], SizeOf( TIcedDetail ) );
+      Break;
+      end;
+    end;
+
+  SetLength( tDetails.Items, 0 );
+  SetLength( tDetails.JumpTargets, 0 );
+  StrL_Out.free;
+end;
+*)
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 {$IFDEF TEST_FUNCTIONS}
+{
+  i9, Delphi 7
+    193mb without Formatting in: 1.0901749 seconds
+    193mb with Masm in: 34.4844735 seconds (5.596mb/s)
+    193mb with Fast in: 15.1733084 seconds (12.719mb/s)
+
+  i9, Delphi 10.3
+    193mb without Formatting in: 1.0695132 seconds
+    193mb with Masm in: 34.8067761 seconds (5.544mb/s)
+    193mb with Fast in: 14.9694206 seconds (12.892mb/s)
+}
+function Benchmark( Data : PByte; Size : Cardinal; Bitness : TIcedBitness; AFormat : Boolean = False ) : Double;
+var
+  Instruction : TInstruction;
+  f, t1, t2   : Int64;
+  tOutput     : Array [ 0..255 ] of AnsiChar;
+begin
+  Iced.Decoder.Bitness := Bitness;
+  Iced.Decoder.SetData( Data, Size );
+  
+  if AFormat then
+    begin
+    Iced.Formatter.FormatterType := ftFast;
+    Iced.Formatter.VerifyOutputHasEnoughBytesLeft := False;    
+    QueryPerformanceCounter( t1 );
+    while Iced.Decoder.CanDecode do
+      begin
+      Iced.Decoder.Decode( Instruction );
+      Iced.Formatter.Format( Instruction, tOutput, Length( tOutput ) );
+      end;
+    QueryPerformanceCounter( t2 );
+    end
+  else
+    begin
+    QueryPerformanceCounter( t1 );
+    while Iced.Decoder.CanDecode do
+      Iced.Decoder.Decode( Instruction );
+    QueryPerformanceCounter( t2 );
+    end;
+
+  QueryPerformanceFrequency( f );
+  result := ( t2-t1 ) / f; // * 1000;
+end;
+
+function Benchmark( FileName : String; Bitness : TIcedBitness; AFormat : Boolean = False ) : Double;
+var
+  ms : TMemoryStream;
+begin
+  if NOT FileExists( FileName ) then
+    begin
+    result := 0;
+    Exit;
+    end;
+
+  ms := TMemoryStream.Create;
+  ms.LoadFromFile( FileName );
+  Result := Benchmark( ms.Memory, ms.Size, Bitness, AFormat );
+  ms.Free;
+end;
+
 function Test( StrL : TStringList ) : Boolean;
 begin
   if ( StrL <> nil ) then
@@ -6213,8 +7195,6 @@ begin
     end;
   result := Test_Decode(
                   @EXAMPLE_CODE, Length( EXAMPLE_CODE ), EXAMPLE_RIP,
-//                  {$IF CompilerVersion < 23}PAnsiChar{$ELSE}PByte{$IFEND}( ms.Memory )+ms.Position, ms.Size-ms.Position, $400000,
-//                  {$IF CompilerVersion < 23}PAnsiChar{$ELSE}PByte{$IFEND}( ms.Memory )+ms.Position + $01F89640, 100000, $0000000002389640,
 
                   StrL,
                   ftMasm{FormatterType},
@@ -6265,7 +7245,7 @@ end;
 const
   HEXBYTES_COLUMN_BYTE_LENGTH = 16; // 30;
 
-function Test_Decode( Data : PByte; Size : Cardinal; RIP : UInt64; AOutput : TStringList; FormatterType : TIcedFormatterType = ftMasm;
+function Test_Decode( Data : PByte; Size : Cardinal; ARIP : UInt64; AOutput : TStringList; FormatterType : TIcedFormatterType = ftMasm;
                       SymbolResolver : TSymbolResolverCallback = nil;
                       FormatterOptionsProviderCallback : TFormatterOptionsProviderCallback = nil;
                       FormatterOutputCallback : TFormatterOutputCallback = nil;
@@ -6276,6 +7256,10 @@ var
   FPU_Info      : TFpuStackIncrementInfo;
   CPUIDFeatures : TCPUIDFeaturesArray;
   OPKinds       : TOPKindsArray;
+  Encoding      : TEncodingKind;
+  Mnemonic      : TMnemonic;
+  FlowControl   : TFlowControl;
+  OPKind        : TOPCodeOperandKind;
 //  OPKinds_      : TOPCodeOperandKindArray;
   Info          : TInstructionInfo;
   CC            : TConditionCode;
@@ -6289,9 +7273,11 @@ begin
   result := False;
   if ( AOutput = nil ) then
     Exit;
-  AAOutput.Clear;
+  AOutput.Clear;
 
-  Iced.Decoder.SetData( Data, Size, RIP, doNONE );
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Iced.Decoder.SetData( Data, Size, ARIP, doNONE );
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
   Iced.Formatter.FormatterType   := FormatterType;
   Iced.Formatter.SymbolResolver  := SymbolResolver;
   Iced.Formatter.OptionsProvider := FormatterOptionsProviderCallback;
@@ -6303,11 +7289,12 @@ begin
 
     if Assembly then
       begin
+      {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
       C := Instruction.next_rip-Instruction.len;
+      {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
       S := Format( '%.16x ', [ C ] );
-      C := C-RIP;
 
-      for i := C to C+Instruction.len-1 do
+      for i := 0 to Instruction.len-1 do
         begin
         S := S + Format( '%.2x', [ Data^ ] );
         Inc( Data );
@@ -6316,10 +7303,10 @@ begin
       for i := 0 to HEXBYTES_COLUMN_BYTE_LENGTH-Instruction.len*2+1 do
         S := S + ' ';
 
-      if ( FormatterOutputCallback <> nil ) then
+      if ( @FormatterOutputCallback <> nil ) then
         Iced.Formatter.Format( Instruction );
       Iced.Formatter.Format( Instruction, tOutput, Length( tOutput ) );
-      AAOutput.Add( S + String( tOutput ) );
+      AOutput.Add( S + String( tOutput ) );
       end;
 
     if DecodeInfos then
@@ -6335,11 +7322,15 @@ begin
 
       if Infos then
         begin
-        AAOutput.Add( '    OpCode: ' + Instruction.OpCodeInfo_OpCodeString );
-        AAOutput.Add( '    Instruction: ' + Instruction.OpCodeInfo_InstructionString );
-        AAOutput.Add( '    Encoding: ' + TEncodingKind_String[ Integer( Instruction.Encoding ) ] );
-        AAOutput.Add( '    Mnemonic: ' + TMnemonic_String[ Integer( Instruction.Mnemonic ) ] );
-        AAOutput.Add( '    Code: ' + TCode_String[ Integer( Instruction.code ) ] );
+        AOutput.Add( '    OpCode: ' + Instruction.OpCodeInfo_OpCodeString );
+        AOutput.Add( '    Instruction: ' + Instruction.OpCodeInfo_InstructionString );
+
+        Encoding := Instruction.Encoding;
+        AOutput.Add( '    Encoding: ' + Encoding.AsString );
+
+        Mnemonic := Instruction.Mnemonic;
+        AOutput.Add( '    Mnemonic: ' + Mnemonic.AsString );
+        AOutput.Add( '    Code: ' + Instruction.code.AsString );
         end;
 
       CPUIDFeatures := Instruction.CPUIDFeatures;
@@ -6349,13 +7340,14 @@ begin
         for i := 0 to CPUIDFeatures.Count-1 do
           begin
           if ( i > 0 ) then
-            S := S + 'AND ' + TCPUidFeature_String[ Integer( CPUIDFeatures.Entries[ i ] ) ]
+            S := S + 'AND ' + CPUIDFeatures.Entries[ i ].AsString
           else
-            S := TCPUidFeature_String[ Integer( CPUIDFeatures.Entries[ i ] ) ];
+            S := CPUIDFeatures.Entries[ i ].AsString;
           end;
-        AAOutput.Add( '    CpuidFeature: ' + S );
+        AOutput.Add( '    CpuidFeature: ' + S );
 
-        AAOutput.Add( '    FlowControl: ' + TFlowControl_String[ Integer( Instruction.FlowControl ) ] );
+        FlowControl := Instruction.FlowControl;
+        AOutput.Add( '    FlowControl: ' + FlowControl.AsString );
         end;
 
       FPU_Info := Instruction.FPU_StackIncrementInfo;
@@ -6389,23 +7381,23 @@ begin
       RFlags := Instruction.RFlags;
       if Infos then
         begin
-        if ( CC <> cc_None ) then
-          AOutput.Add( Format( '    Condition code: %s', [ TConditionCode_String[ Integer( CC ) ] ] ) );
+        if ( CC.ConditionCode <> cc_None ) then
+          AOutput.Add( Format( '    Condition code: %s', [ CC.AsString ] ) );
 
         if ( NOT RFlags.Read.IsNone ) OR ( NOT RFlags.Written.IsNone ) OR ( NOT RFlags.Cleared.IsNone ) OR ( NOT RFlags.Set_.IsNone ) OR ( NOT RFlags.Undefined.IsNone ) OR ( NOT RFlags.Modified.IsNone ) then
           begin
           if ( NOT RFlags.Read.IsNone ) then
-            AOutput.Add( '    RFLAGS Read: ' + ParseRFlags( RFlags.Read ) );
+            AOutput.Add( '    RFLAGS Read: ' + RFlags.Read.AsString );
           if ( NOT RFlags.Written.IsNone ) then
-            AOutput.Add( '    RFLAGS Written: ' + ParseRFlags( RFlags.Written ) );
+            AOutput.Add( '    RFLAGS Written: ' + RFlags.Written.AsString );
           if ( NOT RFlags.Cleared.IsNone ) then
-            AOutput.Add( '    RFLAGS Cleared: ' + ParseRFlags( RFlags.Cleared ) );
+            AOutput.Add( '    RFLAGS Cleared: ' + RFlags.Cleared.AsString );
           if ( NOT RFlags.Set_.IsNone ) then
-            AOutput.Add( '    RFLAGS Set: ' + ParseRFlags( RFlags.Set_ ) );
+            AOutput.Add( '    RFLAGS Set: ' + RFlags.Set_.AsString );
           if ( NOT RFlags.Undefined.IsNone ) then
-            AOutput.Add( '    RFLAGS Undefined: ' + ParseRFlags( RFlags.Undefined ) );
+            AOutput.Add( '    RFLAGS Undefined: ' + RFlags.Undefined.AsString );
           if ( NOT RFlags.Modified.IsNone ) then
-            AOutput.Add( '    RFLAGS Modified: ' + ParseRFlags( RFlags.Modified ) );
+            AOutput.Add( '    RFLAGS Modified: ' + RFlags.Modified.AsString );
           end;
         end;
 
@@ -6415,10 +7407,12 @@ begin
         begin
         for i := 0 to OPKinds.Count-1 do
           begin
-          if ( OPKinds.Entries[ i ] = okMemory ) then
+          if ( OPKinds.Entries[ i ].OpKind = okMemory ) then
             begin
+            {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
             C := Instruction.MemorySize;
             if ( C <> 0 ) then
+            {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
               AOutput.Add( '    Memory Size: ' + IntToStr( C ) );
             break;
             end;
@@ -6429,24 +7423,27 @@ begin
       if Infos then
         begin
         for i := 0 to Instruction.OPCount-1 do
-          AOutput.Add( Format( '    Op%dAccess: %s', [ i, TOpAccess_String[ Integer( Info.op_accesses[ i ] ) ] ] ) );
+          AOutput.Add( Format( '    Op%dAccess: %s', [ i, Info.op_accesses[ i ].AsString ] ) );
 
         for i := 0 to Instruction.OpCodeInfo_OPCount-1 do
-          AOutput.Add( Format( '    Op%d: %s', [ i, TOpCodeOperandKind_Strings[ Integer( Instruction.OpCodeInfo_OPKind( i ) ) ] ] ) );
+          begin
+          OPKind := Instruction.OpCodeInfo_OPKind( i );
+          AOutput.Add( Format( '    Op%d: %s', [ i, OPKind.AsString ] ) );
+          end;
 
         for i := 0 to Info.used_registers.Count-1 do
-          AOutput.Add( Format( '    Used reg: %s:%s', [ TRegister_String[ Integer( Info.used_registers.Entries[ i ].register_ ) ], TOpAccess_String[ Integer( Info.used_registers.Entries[ i ].access ) ] ] ) );
+          AOutput.Add( Format( '    Used reg: %s:%s', [ Info.used_registers.Entries[ i ].register_.AsString, Info.used_registers.Entries[ i ].access.AsString ] ) );
 
         for i := 0 to Info.used_memory_locations.Count-1 do
           AOutput.Add( Format( '    Used mem: %s:%s+0x%.2x:%s:%d:%s:%s:%s:%d', [
-                                                                            TRegister_String[ Integer( Info.used_memory_locations.Entries[ i ].segment ) ],
-                                                                            TRegister_String[ Integer( Info.used_memory_locations.Entries[ i ].base ) ],
+                                                                            Info.used_memory_locations.Entries[ i ].segment.AsString,
+                                                                            Info.used_memory_locations.Entries[ i ].base.AsString,
                                                                             Info.used_memory_locations.Entries[ i ].displacement,
-                                                                            TRegister_String[ Integer( Info.used_memory_locations.Entries[ i ].index ) ],
+                                                                            Info.used_memory_locations.Entries[ i ].index.AsString,
                                                                             Info.used_memory_locations.Entries[ i ].scale,
-                                                                            TMemorySize_String[ Integer( Info.used_memory_locations.Entries[ i ].memory_size ) ],
-                                                                            TOpAccess_String[ Integer( Info.used_memory_locations.Entries[ i ].access ) ],
-                                                                            TCodeSize_String[ Integer( Info.used_memory_locations.Entries[ i ].address_size ) ],
+                                                                            Info.used_memory_locations.Entries[ i ].memory_size.AsString,
+                                                                            Info.used_memory_locations.Entries[ i ].access.AsString,
+                                                                            Info.used_memory_locations.Entries[ i ].address_size.AsString,
                                                                             Info.used_memory_locations.Entries[ i ].vsib_size
                                                                           ] ) );
         end;
@@ -6458,7 +7455,7 @@ begin
   result := True;
 end;
 
-function Test_ReEncode( Data : PByte; Size : Cardinal; RIP : UInt64; {LocalBuffer : Boolean = False;} BlockEncode : Boolean = False; Output : TStringList = nil ) : Boolean;
+function Test_ReEncode( Data : PByte; Size : Cardinal; ARIP : UInt64; {LocalBuffer : Boolean = False;} BlockEncode : Boolean = False; AOutput : TStringList = nil ) : Boolean;
 var
   Instruction : TInstruction;
   tOutput     : Array [ 0..255 ] of AnsiChar;
@@ -6472,7 +7469,9 @@ begin
 //  if ( Output <> nil ) then
 //    AOutput.Clear;
 
-  Iced.Decoder.SetData( Data, Size, RIP, doNONE );
+  {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+  Iced.Decoder.SetData( Data, Size, ARIP, doNONE );
+  {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
 //  if LocalBuffer AND NOT BlockEncode then
 //    begin
 //    SetLength( Buffer, Size );
@@ -6496,7 +7495,7 @@ begin
 
   if BlockEncode then
     begin
-    Iced.BlockEncoder.Encode( RIP, Block, Results );
+    Iced.BlockEncoder.Encode( ARIP, Block, Results );
     SetLength( Block, 0 );
     result := CompareMem( Data, Results.code_buffer, Size );
     end
@@ -6513,22 +7512,26 @@ begin
 //      Iced.Encoder.SetBuffer( nil, 0 );
     end;
 
-  if ( Output <> nil ) then
+  if ( AOutput <> nil ) then
     begin
     if BlockEncode then
       Iced.Decoder.SetData( PByte( Results.code_buffer ), Results.code_buffer_len, Results.RIP, doNONE )
     else
-      Iced.Decoder.SetData( @Buffer[ 0 ], Size, RIP, doNONE );
+      Iced.Decoder.SetData( @Buffer[ 0 ], Size, ARIP, doNONE );
 
     while Iced.Decoder.CanDecode do
       begin
       Iced.Decoder.Decode( Instruction );
 
+      {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
       C := Instruction.next_rip-Instruction.len;
+      {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
       S := Format( '%.16x ', [ C ] );
-      C := C-RIP;
+      {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
+      C := C-ARIP;
+      {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
 
-      for i := C to C+Instruction.len-1 do
+      for i := 0 to Instruction.len-1 do
         begin
         S := S + Format( '%.2x', [ Data^ ] );
         Inc( Data );
@@ -6545,7 +7548,7 @@ begin
   SetLength( Buffer, 0 );
 end;
 
-procedure Test_Assemble( Output : TStringList; RIP : UInt64 = UInt64( $00001248FC840000 ) );
+procedure Test_Assemble( AOutput : TStringList; ARIP : UInt64 = UInt64( $00001248FC840000 ) );
 var
   LabelID : UInt64;
 
@@ -6568,6 +7571,7 @@ const
   raw_data : Array [ 0..3 ] of Byte = ( $12, $34, $56, $78 );
 var
   Instructions : TInstructionArray;
+  MemoryOperand: TMemoryOperand;
   Results      : TBlockEncoderResult;
   label1       : UInt64;
   data1        : UInt64;
@@ -6578,7 +7582,7 @@ var
   Data         : PByte;
   C            : Cardinal;
 begin
-//  if ( Output <> nil ) then
+//  if ( AOutput <> nil ) then
 //    AOutput.Clear;
 
   // All created instructions get an IP of 0. The label id is just an IP.
@@ -6591,44 +7595,44 @@ begin
   {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
 
   SetLength( Instructions, 18 );
-  Instructions[ 0 ] := TInstruction.with1( Push_r64, TRegister.RBP );
-  Instructions[ 1 ] := TInstruction.with1( Push_r64, TRegister.RDI );
-  Instructions[ 2 ] := TInstruction.with1( Push_r64, TRegister.RSI );
-  Instructions[ 3 ] := TInstruction.with2( Sub_rm64_imm32, TRegister.RSP, $50 );
-  Instructions[ 4 ] := TInstruction.with_( VEX_Vzeroupper );
-  Instructions[ 5 ] := TInstruction.with2(
+  Instructions[ 0 ] := {T}Instruction.with1( Push_r64, RBP );
+  Instructions[ 1 ] := {T}Instruction.with1( Push_r64, RDI );
+  Instructions[ 2 ] := {T}Instruction.with1( Push_r64, RSI );
+  Instructions[ 3 ] := {T}Instruction.with2( Sub_rm64_imm32, RSP, Cardinal( $50 ) );
+  Instructions[ 4 ] := {T}Instruction.with_( VEX_Vzeroupper );
+  Instructions[ 5 ] := {T}Instruction.with2(
       Lea_r64_m,
       RBP,
-      TMemoryOperand.with_base_displ( TRegister.RSP, $60 )
+      {T}MemoryOperand.with_base_displ( RSP, $60 )
   );
-  Instructions[ 6 ] := TInstruction.with2( Mov_r64_rm64, TRegister.RSI, TRegister.RCX );
-  Instructions[ 7 ] := TInstruction.with2(
+  Instructions[ 6 ] := {T}Instruction.with2( Mov_r64_rm64, RSI, RCX );
+  Instructions[ 7 ] := {T}Instruction.with2(
       Lea_r64_m,
       RDI,
-      TMemoryOperand.with_base_displ( TRegister.RBP, -$38 )
+      {T}MemoryOperand.with_base_displ( RBP, -$38 )
   );
-  Instructions[ 8 ] := TInstruction.with2( Mov_r32_imm32, TRegister.ECX, $0A );
-  Instructions[ 9 ] := TInstruction.with2( Xor_r32_rm32, TRegister.EAX, TRegister.EAX );
-  Instructions[ 10 ] := TInstruction.with_rep_stosd( Cardinal( Bitness ) );
-  Instructions[ 11 ] := TInstruction.with2( Cmp_rm64_imm32, TRegister.RSI, $12345678 );
+  Instructions[ 8 ] := {T}Instruction.with2( Mov_r32_imm32, ECX, Cardinal( $0A ) );
+  Instructions[ 9 ] := {T}Instruction.with2( Xor_r32_rm32, EAX, EAX );
+  Instructions[ 10 ] := {T}Instruction.with_rep_stosd( Cardinal( Bitness ) );
+  Instructions[ 11 ] := {T}Instruction.with2( Cmp_rm64_imm32, RSI, Cardinal( $12345678 ) );
   // Create a branch instruction that references label1
-  Instructions[ 12 ] := TInstruction.with_branch( Jne_rel32_64, label1 );
-  Instructions[ 13 ] := TInstruction.with_( Nopd );
+  Instructions[ 12 ] := {T}Instruction.with_branch( Jne_rel32_64, label1 );
+  Instructions[ 13 ] := {T}Instruction.with_( Nopd );
 
   // Add the instruction that is the target of the branch
-  Instructions[ 14 ] := AddLabel( label1, Instruction.with2( Xor_r32_rm32, TRegister.R15D, TRegister.R15D ) );
+  Instructions[ 14 ] := AddLabel( label1, {T}Instruction.with2( Xor_r32_rm32, R15D, R15D ) );
 
   // Create an instruction that accesses some data using an RIP relative memory operand
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
   data1 := CreateLabel;
-  Instructions[ 15 ] := TInstruction.with2(
+  Instructions[ 15 ] := {T}Instruction.with2(
         Lea_r64_m,
         R14,
-        TMemoryOperand.with_base_displ( TRegister.RIP, Int64( data1 ) ) );
+        {T}MemoryOperand.with_base_displ( RIP, Int64( data1 ) ) );
   {$IF CompilerVersion < 23}{$RANGECHECKS ON}{$IFEND} // RangeCheck might cause Internal-Error C1118
-  Instructions[ 16 ] := TInstruction.with_( Nopd );
-  Instructions[ 17 ] := AddLabel( data1, TInstruction.with_declare_byte( raw_data ) );
-  Instructions[ 18 ] := TInstruction.with_declare_byte( raw_data );
+  Instructions[ 16 ] := {T}Instruction.with_( Nopd );
+  Instructions[ 17 ] := AddLabel( data1, {T}Instruction.with_declare_byte( raw_data ) );
+  Instructions[ 18 ] := {T}Instruction.with_declare_byte( raw_data );
 
   // Use BlockEncoder to encode a block of instructions. This block can contain any
   // number of branches and any number of instructions. It does support encoding more
@@ -6636,7 +7640,7 @@ begin
   // It uses Encoder to encode all instructions.
   // If the target of a branch is too far away, it can fix it to use a longer branch.
   // This can be disabled by enabling some BlockEncoderOptions flags.
-  Iced.BlockEncoder.Encode( RIP, Instructions, Results );
+  Iced.BlockEncoder.Encode( ARIP, Instructions, Results );
 
   // Now disassemble the encoded instructions. Note that the 'jmp near'
   // instruction was turned into a 'jmp short' instruction because we
@@ -6644,7 +7648,7 @@ begin
   Iced.Formatter.FormatterType := ftGas;
   Iced.Formatter.FirstOperandCharIndex := 8;
 
-  if ( Output <> nil ) then
+  if ( AOutput <> nil ) then
     begin
     Iced.Decoder.SetData( PByte( Results.code_buffer ), Results.code_buffer_len-NativeUInt( Length( raw_data ) ), Results.RIP, doNONE );
     Data := PByte( Results.code_buffer );
@@ -6655,7 +7659,7 @@ begin
 
       C := Instruction.next_rip-Instruction.len;
       S := Format( '%.16x ', [ C ] );
-      C := C-RIP;
+      C := C-ARIP;
 
       for i := C to C+Instruction.len-1 do
         begin
@@ -6670,7 +7674,7 @@ begin
       AOutput.Add( S + String( tOutput ) );
       end;
 
-    Instruction := TInstruction.with_declare_byte( raw_data );
+    Instruction := {T}Instruction.with_declare_byte( raw_data );
     Iced.Formatter.Format( Instruction, tOutput, Length( tOutput ) );
     AOutput.Add( S + String( tOutput ) );
     end;
