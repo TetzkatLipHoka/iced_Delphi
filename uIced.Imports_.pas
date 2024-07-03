@@ -91,7 +91,7 @@ var
   MasmFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl = nil;
 
   // Format Instruction
-  MasmFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; Output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  MasmFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ); cdecl = nil;
   MasmFormatter_FormatCallback : procedure( Formatter : Pointer; const Instruction: TInstruction; FormatterOutput: Pointer ); cdecl = nil;
 
   // Creates a Nasm formatter
@@ -102,7 +102,7 @@ var
   NasmFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl = nil;
 
   // Format Instruction
-  NasmFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; Output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  NasmFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ); cdecl = nil;
   NasmFormatter_FormatCallback : procedure( Formatter : Pointer; const Instruction: TInstruction; FormatterOutput: Pointer ); cdecl = nil;
 
   // Creates a Gas formatter
@@ -113,7 +113,7 @@ var
   GasFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl = nil;
 
   // Format Instruction
-  GasFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  GasFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ); cdecl = nil;
   GasFormatter_FormatCallback : procedure( Formatter : Pointer; const Instruction: TInstruction; FormatterOutput: Pointer ); cdecl = nil;
 
   // Creates a Intel formatter
@@ -124,7 +124,7 @@ var
   IntelFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl = nil;
 
   // Format Instruction
-  IntelFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  IntelFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ); cdecl = nil;
   IntelFormatter_FormatCallback : procedure( Formatter : Pointer; const Instruction: TInstruction; FormatterOutput: Pointer ); cdecl = nil;
 
   // Creates a Fast formatter (Specialized)
@@ -132,13 +132,13 @@ var
   FastFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl = nil;
 
   // Format Instruction
-  FastFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  FastFormatter_Format : function( Formatter : Pointer; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ) : PAnsiChar; cdecl = nil;
 
   // Creates a Specialized formatter
   SpecializedFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl = nil;
 
   // Format Instruction
-  SpecializedFormatter_Format : procedure( Formatter : Pointer; Options : Byte; const Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  SpecializedFormatter_Format : procedure( Formatter : Pointer; Options : Byte; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ); cdecl = nil;
 
 // Options
   // NOTE: Specialized Formatter only supports the following Options
@@ -185,7 +185,7 @@ var
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Formatter Options
   // Format Instruction
-  Formatter_Format : procedure( Formatter : Pointer; FormatterType : TIcedFormatterType; const Instruction: TInstruction; Output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  Formatter_Format : procedure( Formatter : Pointer; FormatterType : TIcedFormatterType; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ); cdecl = nil;
   Formatter_FormatCallback : procedure( Formatter : Pointer; FormatterType : TIcedFormatterType; const Instruction: TInstruction; FormatterOutput: Pointer ); cdecl = nil;
 
   // Prefixes are uppercased

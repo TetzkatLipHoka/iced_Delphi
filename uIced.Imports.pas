@@ -153,7 +153,7 @@ var
   MasmFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl = nil;
 
   // Format Instruction
-  MasmFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; Output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  MasmFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ); cdecl = nil;
   MasmFormatter_FormatCallback : procedure( Formatter : Pointer; const Instruction: TInstruction; FormatterOutput: Pointer ); cdecl = nil;
 
   // Creates a Nasm formatter
@@ -164,7 +164,7 @@ var
   NasmFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl = nil;
 
   // Format Instruction
-  NasmFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; Output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  NasmFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ); cdecl = nil;
   NasmFormatter_FormatCallback : procedure( Formatter : Pointer; const Instruction: TInstruction; FormatterOutput: Pointer ); cdecl = nil;
 
   // Creates a Gas formatter
@@ -175,7 +175,7 @@ var
   GasFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl = nil;
 
   // Format Instruction
-  GasFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  GasFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ); cdecl = nil;
   GasFormatter_FormatCallback : procedure( Formatter : Pointer; const Instruction: TInstruction; FormatterOutput: Pointer ); cdecl = nil;
 
   // Creates a Intel formatter
@@ -186,7 +186,7 @@ var
   IntelFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; OptionsProvider : TFormatterOptionsProviderCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl = nil;
 
   // Format Instruction
-  IntelFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  IntelFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ); cdecl = nil;
   IntelFormatter_FormatCallback : procedure( Formatter : Pointer; const Instruction: TInstruction; FormatterOutput: Pointer ); cdecl = nil;
 
   // Creates a Fast formatter (Specialized)
@@ -194,13 +194,13 @@ var
   FastFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl = nil;
 
   // Format Instruction
-  FastFormatter_Format : procedure( Formatter : Pointer; const Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  FastFormatter_Format : function( Formatter : Pointer; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ) : PAnsiChar; cdecl = nil;
 
   // Creates a Specialized formatter
   SpecializedFormatter_Create : function( SymbolResolver : TSymbolResolverCallback = nil; UserData : Pointer = nil ) : Pointer; cdecl = nil;
 
   // Format Instruction
-  SpecializedFormatter_Format : procedure( Formatter : Pointer; Options : Byte; const Instruction: TInstruction; output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  SpecializedFormatter_Format : procedure( Formatter : Pointer; Options : Byte; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ); cdecl = nil;
 
 // Options
   // NOTE: Specialized Formatter only supports the following Options
@@ -247,7 +247,7 @@ var
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Formatter Options
   // Format Instruction
-  Formatter_Format : procedure( Formatter : Pointer; FormatterType : TIcedFormatterType; const Instruction: TInstruction; Output: PAnsiChar; Size : NativeUInt ); cdecl = nil;
+  Formatter_Format : procedure( Formatter : Pointer; FormatterType : TIcedFormatterType; const Instruction: TInstruction; var Output: PAnsiChar; var Size : NativeUInt ); cdecl = nil;
   Formatter_FormatCallback : procedure( Formatter : Pointer; FormatterType : TIcedFormatterType; const Instruction: TInstruction; FormatterOutput: Pointer ); cdecl = nil;
 
   // Prefixes are uppercased
@@ -1546,7 +1546,7 @@ var
   // * Arg 1: `register`: Register (GPR8, GPR16, GPR32, GPR64, XMM, YMM, ZMM, seg). If it's a segment register, the call-back function should return the segment's base address, not the segment's register value.
   // * Arg 2: `element_index`: Only used if it's a vsib memory operand. This is the element index of the vector index register.
   // * Arg 3: `element_size`: Only used if it's a vsib memory operand. Size in bytes of elements in vector index register (4 or 8).
-  Instruction_VirtualAddress : function( const Instruction: TInstruction; Callback : TVirtualAddressResolverCallback; Operand : Cardinal = 0; Index : NativeUInt = 0; UserData : Pointer = nil ) : UInt64; cdecl = nil;
+  Instruction_VirtualAddress : function ( const Instruction: TInstruction; Callback : TVirtualAddressResolverCallback; Operand : Cardinal = 0; Index : NativeUInt = 0; UserData : Pointer = nil ) : UInt64; cdecl = nil;
 
   // `true` if eviction hint bit is set (`{eh}`) (MVEX instructions only)
   Instruction_IsMvexEvictionHint : function( const Instruction: TInstruction ) : Boolean; cdecl = nil;
@@ -2625,7 +2625,6 @@ begin
         InitVar( @NumberBase_AsString, 'NumberBase_AsString', ID, StrL );
         InitVar( @RepPrefixKind_AsString, 'RepPrefixKind_AsString', ID, StrL );
         InitVar( @MemorySizeOptions_AsString, 'MemorySizeOptions_AsString', ID, StrL );
-
         InitVar( @MemorySize_AsString, 'MemorySize_AsString', ID, StrL );
         InitVar( @MemorySize_Info, 'MemorySize_Info', ID, StrL );
         InitVar( @OpCodeTableKind_AsString, 'OpCodeTableKind_AsString', ID, StrL );
