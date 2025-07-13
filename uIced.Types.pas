@@ -3,7 +3,7 @@ unit uIced.Types;
 {
   Iced (Dis)Assembler
 
-  TetzkatLipHoka 2022-2024
+  TetzkatLipHoka 2022-2025
 }
 
 (*
@@ -44539,7 +44539,7 @@ type
     function  IsFloat64 : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  IsEqual( const Instruction : TInstruction; IgnoreRIP : Boolean = True ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  IsPartialEqual( const Instruction : TInstruction ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
-    function  IsSimiliar( const Instruction : TInstruction; MaxDisplacement : Cardinal = 0 ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
+    function  IsSimiliar( const Instruction : TInstruction; MaxDisplacement : Cardinal = 0; StrictType : Boolean = False ) : Boolean; {$IF CompilerVersion >= 23}inline;{$IFEND}
 
     function  FPU_StackIncrementInfo : TFpuStackIncrementInfo; {$IF CompilerVersion >= 23}inline;{$IFEND}
     function  Encoding : TEncodingKind; {$IF CompilerVersion >= 23}inline;{$IFEND}
@@ -49468,23 +49468,67 @@ begin
             ( pad           = Instruction.pad );
 end;
 
-function TInstruction.IsSimiliar( const Instruction : TInstruction; MaxDisplacement : Cardinal = 0 ) : Boolean;
-const
-  MAX_DISPLACEMENT = $1000;
+function TInstruction.IsSimiliar( const Instruction : TInstruction; MaxDisplacement : Cardinal = 0; StrictType : Boolean = False ) : Boolean;
+//const
+//  MAX_DISPLACEMENT = $1000;
 var
   Cnt1,
   Cnt2 : Byte;
   i    : Integer;
   Dev  : UInt64;
+  T1,
+  T2   : Byte;
 begin
   Cnt1 := 0;
   Cnt2 := 0;
+
+  if StrictType then
+    begin
+    if ( mem_base_reg in [ SPL, BPL, SP, BP, ESP, EBP, RSP, RBP ] ) OR
+       ( mem_index_reg in [ SPL, BPL, SP, BP, ESP, EBP, RSP, RBP ] ) then
+      T1 := 1
+    else if ( mem_base_reg in [ EIP, TRegisterType( 70 ){RIP} ] ) OR
+            ( mem_index_reg in [ EIP, TRegisterType( 70 ){RIP} ] ) then
+      T1 := 2
+    else
+      T1 := 0;
+
+    if ( Instruction.mem_base_reg in [ SPL, BPL, SP, BP, ESP, EBP, RSP, RBP ] ) OR
+       ( Instruction.mem_index_reg in [ SPL, BPL, SP, BP, ESP, EBP, RSP, RBP ] ) then
+      T2 := 1
+    else if ( Instruction.mem_base_reg in [ EIP, TRegisterType( 70 ){RIP} ] ) OR
+            ( Instruction.mem_index_reg in [ EIP, TRegisterType( 70 ){RIP} ] ) then
+      T2 := 2
+    else
+      T2 := 0;
+    end
+  else
+    begin
+    T1 := 0;
+    T2 := 0;
+    end;
+
   for i := Low( regs ) to High( regs ) do
     begin
     if ( Regs[ i ].Register = None ) then
-      Inc( Cnt1 );
+      Inc( Cnt1 )
+    else if StrictType AND ( T1 = 0 ) then
+      begin
+      if ( Regs[ i ].Register in [ SPL, BPL, SP, BP, ESP, EBP, RSP, RBP ] ) then
+        T1 := 1
+      else if ( Regs[ i ].Register in [ EIP, TRegisterType( 70 ){RIP} ] ) then
+        T1 := 2;
+      end;
+
     if ( Instruction.Regs[ i ].Register = None ) then
-      Inc( Cnt2 );
+      Inc( Cnt2 )
+    else if StrictType AND ( T2 = 0 ) then
+      begin
+      if ( Instruction.Regs[ i ].Register in [ SPL, BPL, SP, BP, ESP, EBP, RSP, RBP ] ) then
+        T2 := 1
+      else if ( Instruction.Regs[ i ].Register in [ EIP, TRegisterType( 70 ){RIP} ] ) then
+        T2 := 2;
+      end;
     end;
 
   {$IF CompilerVersion < 23}{$RANGECHECKS OFF}{$IFEND} // RangeCheck might cause Internal-Error C1118
@@ -49552,6 +49596,7 @@ begin
 //            ( regs[ 2 ].Register = Instruction.regs[ 2 ].Register ) AND
 //            ( regs[ 3 ].Register = Instruction.regs[ 3 ].Register ) AND
             ( Cnt1 = Cnt2 ) AND
+            ( T1 = T2 ) AND
 
             ( op_kinds[ 0 ].OpKind = Instruction.op_kinds[ 0 ].OpKind ) AND
             ( op_kinds[ 1 ].OpKind = Instruction.op_kinds[ 1 ].OpKind ) AND

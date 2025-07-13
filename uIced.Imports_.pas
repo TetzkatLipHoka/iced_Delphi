@@ -3,7 +3,7 @@ unit uIced.Imports;
 {
   Iced (Dis)Assembler
 
-  TetzkatLipHoka 2022-2024
+  TetzkatLipHoka 2022-2025
 }
 
 interface

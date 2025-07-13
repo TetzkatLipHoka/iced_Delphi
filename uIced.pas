@@ -3,7 +3,7 @@ unit uIced;
 {
   Iced (Dis)Assembler
 
-  TetzkatLipHoka 2022-2024
+  TetzkatLipHoka 2022-2025
 }
 
 // MS Finish details ..
@@ -541,7 +541,7 @@ type
   PIcedReferenceScanResults = ^tIcedReferenceScanResults;
 
   tIcedAssemblyScanMode = (
-    asmEqual, asmSimiliar, asmWildcard
+    asmEqual, asmSimiliar, asmStrictSimiliar, asmWildcard
     {$IF CompilerVersion >= 22}, asmRegExp{$IFEND} // XE
   );
 
@@ -6448,7 +6448,7 @@ begin
     Exit;
   if ( Assembly = '' ) then
     Exit;
-  if ( Mode = asmSimiliar ) then
+  if ( Mode in [ asmSimiliar, asmStrictSimiliar ] ) then
     Exit;
 
   UserData.Assembly := TStringList.Create;
@@ -6619,7 +6619,8 @@ begin
     begin
     case UserData^.Mode of
       asmEqual    : b := Instruction.IsEqual( {$R-}UserData^.Assembly^[ UserData^.CurCount ]{$R+} );
-      asmSimiliar : b := Instruction.IsSimiliar( {$R-}UserData^.Assembly^[ UserData^.CurCount ]{$R+} );
+      asmSimiliar       : b := Instruction.IsSimiliar( {$R-}UserData^.Assembly^[ UserData^.CurCount ]{$R+}, 0{MaxDisplacement}, False{StrictType} );
+      asmStrictSimiliar : b := Instruction.IsSimiliar( {$R-}UserData^.Assembly^[ UserData^.CurCount ]{$R+}, 0{MaxDisplacement}, True{StrictType} );
     else
       b := False;
     end;
@@ -6679,7 +6680,7 @@ begin
     Exit;
   if ( Assembly = nil ) OR ( AssemblyCount = 0 ) then
     Exit;
-  if NOT ( Mode in [ asmEqual, asmSimiliar ] ) then
+  if NOT ( Mode in [ asmEqual, asmSimiliar, asmStrictSimiliar ] ) then
     Exit;
 
   fDecoder.SetData( Data, Size, CodeOffset );
